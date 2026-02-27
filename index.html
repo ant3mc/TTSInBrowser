@@ -1,0 +1,1675 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <title>TTS для браузера</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; height: 100vh; overflow: hidden; background: #fafafa; color: #333; }
+    html:-webkit-full-screen, html:fullscreen { overflow: hidden; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    /* ИСПРАВЛЕНИЕ: гарантированное скрытие всего содержимого стартового экрана */
+    #startScreen.hidden,
+    #startScreen.hidden * {
+      display: none !important;
+    }
+
+    .menu-item:focus, .speed-btn:focus, .font-btn:focus, .control-btn:focus, .menu-toggle:focus, .close-btn:focus,
+    select:focus, input:focus, textarea:focus { outline: none !important; box-shadow: 0 0 0 6px #4CAF50, 0 0 0 6px rgba(76, 175, 80, 0.3) !important; }
+
+    #startScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; display: flex; flex-direction: column; overflow: hidden; padding: 40px; padding-bottom: 0; }
+    .start-title { text-align: center; font-size: 2.5em; margin-bottom: 40px; color: #333; flex-shrink: 0; }
+    .start-menu { max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; padding-bottom: 40px; padding-top: 10px; }
+    @media (orientation: landscape) and (min-width: 600px) { .start-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: none; } .menu-item { margin: 0; } }
+    .menu-item { padding: 15px 20px; margin: 10px 0; border: 2px solid #4CAF50; border-radius: 8px; cursor: pointer; text-align: center; font-size: 1.2em; transition: all 0.3s; outline: none; background: white; }
+    .menu-item:hover, .menu-item:focus { background: #4CAF50; color: white; }
+    .hidden { display: none !important; }
+
+    #mainInterface { height: 100vh; display: flex; flex-direction: column; }
+    /* Панель управления с отступом под системную строку состояния и принудительным пересчётом позиции */
+    .control-row { 
+      display: flex; 
+      align-items: center; 
+      gap: 10px; 
+      padding: 10px; 
+      padding-top: env(safe-area-inset-top, 10px);
+      background: #f5f5f5; 
+      border-bottom: 1px solid #ddd; 
+      flex-wrap: wrap;
+      transform: translateZ(0); /* аппаратное ускорение */
+      position: sticky;        /* заставляет Edge пересчитывать safe-area при изменениях */
+      top: 0;
+      z-index: 1;
+    }
+    .speed-control, .font-size-control { display: flex; align-items: center; background: white; border-radius: 6px; padding: 4px; border: 1px solid #ddd; }
+    .speed-btn, .font-btn { background: none; border: none; padding: 6px 10px; cursor: pointer; font-size: 16px; outline: none; border-radius: 3px; }
+    .speed-btn:hover, .font-btn:hover { background: #f0f0f0; }
+    .speed-value, .font-value { padding: 0 12px; font-weight: bold; min-width: 50px; text-align: center; }
+    .playback-control { display: flex; align-items: center; gap: 5px; }
+    .control-btn { padding: 8px 12px; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer; font-size: 14px; outline: none; min-width: 44px; }
+    .control-btn:hover { background: #f9f9f9; }
+    .play-btn { background: #4CAF50; color: white; border-color: #4CAF50; }
+    .play-btn:hover { background: #45a049; }
+    .menu-toggle { margin-left: auto; padding: 8px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; outline: none; }
+    .menu-toggle:hover { background: #45a049; }
+    .text-container { flex: 1; overflow: auto; padding: 10px; background: #fafafa; }
+    #textContent { line-height: 1.6; color: #333; max-width: 100%; white-space: pre-wrap; word-wrap: break-word; min-height: 100%; }
+    #textInput { width: 100%; height: 100%; border: none; outline: none; line-height: 1.6; padding: 20px; background: #fafafa; resize: none; font-family: Arial, sans-serif; color: #333; }
+    .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1001; max-width: none; width: 90%; }
+    .modal h2 { margin-bottom: 20px; text-align: center; }
+    .modal-content { max-height: 400px; overflow-y: auto; margin-bottom: 20px; width: 100%; box-sizing: border-box; }
+    .close-btn, .action-btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; display: block; margin: 0 auto; outline: none; }
+    .close-btn { background: #4CAF50; color: white; } .close-btn:hover { background: #45a049; }
+    .action-btn--danger { background: #d32f2f; color: white; margin-top: 10px; } .action-btn--danger:hover { background: #b71c1c; }
+    .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+    .status { margin: 10px 0 0 0; padding: 10px; border-radius: 4px; background: #e8f5e8; width: 100%; box-sizing: border-box; }
+    .status.error { background: #ffebee; color: #d32f2f; } .status.warning { background: #fff3e0; color: #e65100; }
+    select, input[type="number"], input[type="range"] { outline: none; width: 100%; padding: 10px; margin-bottom: 20px; }
+    select:focus, input:focus, input[type="range"]:focus { box-shadow: 0 0 0 2px rgba(76,175,80,0.3); }
+
+    #settingsScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1002; display: flex; flex-direction: column; overflow: hidden; padding: 40px; }
+
+    /* ===== ТЁМНАЯ ТЕМА (СИСТЕМНАЯ) ===== */
+    @media (prefers-color-scheme: dark) {
+      body, #textInput, .text-container { background: #1e1e1e; color: #e0e0e0; }
+      #startScreen, .modal, .control-row { background: #2a2a2a; }
+      .start-title { color: #f0f0f0; } .menu-item { background: #2a2a2a; color: #e0e0e0; border-color: #4CAF50; }
+      .speed-control, .font-size-control { background: #1e1e1e; border-color: #444; }
+      .control-btn { background: #2a2a2a; color: #e0e0e0; border-color: #444; }
+      .status.error { background: #3e2723; color: #ff8a80; } .status.warning { background: #3e2f0b; color: #ffb74d; }
+      .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
+    }
+
+    /* ===== ЯВНАЯ ТЁМНАЯ ТЕМА (ПЕРЕОПРЕДЕЛЯЕТ СИСТЕМНУЮ) ===== */
+    html[data-theme="dark"] body,
+    html[data-theme="dark"] #textInput,
+    html[data-theme="dark"] .text-container { background: #1e1e1e; color: #e0e0e0; }
+    html[data-theme="dark"] #startScreen,
+    html[data-theme="dark"] .modal,
+    html[data-theme="dark"] .control-row { background: #2a2a2a; }
+    html[data-theme="dark"] .start-title { color: #f0f0f0; }
+    html[data-theme="dark"] .menu-item { background: #2a2a2a; color: #e0e0e0; border-color: #4CAF50; }
+    html[data-theme="dark"] .speed-control,
+    html[data-theme="dark"] .font-size-control { background: #1e1e1e; border-color: #444; }
+    html[data-theme="dark"] .control-btn { background: #2a2a2a; color: #e0e0e0; border-color: #444; }
+    html[data-theme="dark"] .status.error { background: #3e2723; color: #ff8a80; }
+    html[data-theme="dark"] .status.warning { background: #3e2f0b; color: #ffb74d; }
+    html[data-theme="dark"] .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
+
+    /* ===== ЯВНАЯ СВЕТЛАЯ ТЕМА (ПЕРЕОПРЕДЕЛЯЕТ СИСТЕМНУЮ) ===== */
+    html[data-theme="light"] body,
+    html[data-theme="light"] #textInput,
+    html[data-theme="light"] .text-container { background: #fafafa; color: #333; }
+    html[data-theme="light"] #startScreen,
+    html[data-theme="light"] .modal,
+    html[data-theme="light"] .control-row { background: white; }
+    html[data-theme="light"] .start-title { color: #333; }
+    html[data-theme="light"] .menu-item { background: white; color: #333; border-color: #4CAF50; }
+    html[data-theme="light"] .speed-control,
+    html[data-theme="light"] .font-size-control { background: white; border-color: #ddd; }
+    html[data-theme="light"] .control-btn { background: white; color: #333; border-color: #ddd; }
+    html[data-theme="light"] .status.error { background: #ffebee; color: #d32f2f; }
+    html[data-theme="light"] .status.warning { background: #fff3e0; color: #e65100; }
+    html[data-theme="light"] .status:not(.error):not(.warning) { background: #e8f5e8; color: #333; }
+
+    /* ===== ПОДСВЕТКА ТЕКУЩЕГО ФРАГМЕНТА (В ЗАВИСИМОСТИ ОТ ТЕМЫ) ===== */
+    /* Явная светлая тема */
+    html[data-theme="light"] .current-fragment {
+      background: #333 !important;
+      color: white !important;
+      forced-color-adjust: none !important;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    /* Явная тёмная тема */
+    html[data-theme="dark"] .current-fragment {
+      background: #FFD700 !important;
+      color: #000 !important;
+      forced-color-adjust: none !important;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-weight: bold;
+    }
+    /* Системная тема (авто) – используем системные цвета выделения */
+    html[data-theme="auto"] .current-fragment {
+      background: Highlight !important;
+      color: HighlightText !important;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+
+    /* === ДОБАВЛЕННЫЕ ПРАВИЛА ДЛЯ УПРАВЛЕНИЯ РАМКОЙ ФОКУСА === */
+    /* Яркая зелёная рамка сразу после фокуса */
+    #textContent.has-focus {
+      outline: none !important;
+      box-shadow: 0 0 0 6px #4CAF50, 0 0 0 6px rgba(76, 175, 80, 0.3) !important;
+    }
+
+    /* Приглушённая рамка через несколько секунд */
+    #textContent.dim-focus {
+      outline: none !important;
+      box-shadow: 0 0 0 2px rgba(128, 128, 128, 0.5) !important;
+    }
+
+    /* В полноэкранном режиме (когда панель управления скрыта) убираем любую рамку фокуса */
+    .control-row.hidden + .text-container #textContent:focus,
+    .control-row.hidden + .text-container #textContent.has-focus,
+    .control-row.hidden + .text-container #textContent.dim-focus {
+      box-shadow: none !important;
+    }
+
+    /* Уменьшенный отступ при скрытой панели управления */
+    .control-row.hidden + .text-container {
+      padding: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="startScreen">
+    <h1 class="start-title">TTS для браузера</h1>
+    <div class="start-menu">
+      <button id="resumeText" class="menu-item hidden">Вернуться к тексту</button>
+      <button id="menuInfo" class="menu-item">Информация</button>
+      <button id="menuVoice" class="menu-item">Выбор голоса</button>
+      <button id="menuOpenFile" class="menu-item">Открыть файл</button>
+      <button id="menuTextInput" class="menu-item">Ввод текста</button>
+      <button id="menuLoadDict" class="menu-item">Загрузить словарь замен</button>
+      <button id="menuSavePosition" class="menu-item">Сохранить позицию</button>
+      <button id="menuSettings" class="menu-item">Настройки</button>
+      <button id="menuExit" class="menu-item">Выход</button>
+    </div>
+  </div>
+
+  <div id="mainInterface" class="hidden">
+    <div class="control-row">
+      <div class="speed-control">
+        <button class="speed-btn" id="speedDown" title="Уменьшить скорость" tabindex="0" aria-label="Уменьшить скорость речи">⏬</button>
+        <span class="speed-value" id="speedValue" aria-live="polite">1.00x</span>
+        <button class="speed-btn" id="speedUp" title="Увеличить скорость" tabindex="0" aria-label="Увеличить скорость речи">⏫</button>
+      </div>
+      <div class="font-size-control">
+        <button class="font-btn control-btn" id="fontSmaller" title="Уменьшить шрифт" aria-label="Уменьшить шрифт">A−</button>
+        <span class="font-value" id="fontValue">32px</span>
+        <button class="font-btn control-btn" id="fontLarger" title="Увеличить шрифт" aria-label="Увеличить шрифт">A+</button>
+      </div>
+      <div class="playback-control">
+        <button class="control-btn" id="prevFragment" title="Предыдущий фрагмент" tabindex="0" aria-label="Предыдущий фрагмент">⏪</button>
+        <button class="control-btn play-btn" id="playPause" title="Пуск/Пауза" tabindex="0" aria-label="Воспроизведение/Пауза">▶</button>
+        <button class="control-btn" id="nextFragment" title="Следующий фрагмент" tabindex="0" aria-label="Следующий фрагмент">⏩</button>
+      </div>
+      <button class="menu-toggle" id="menuToggle" title="Вернуться в меню" tabindex="0" aria-label="Открыть главное меню">☰</button>
+    </div>
+    <div class="text-container">
+      <div id="textContent" class="hidden" tabindex="0" title="Пробел: пуск/пауза" aria-label="Текст для чтения. Нажмите пробел для запуска или паузы."></div>
+      <textarea id="textInput" class="hidden" placeholder="Введите или вставьте текст для чтения..." tabindex="0"></textarea>
+    </div>
+    <div id="status" class="status hidden" aria-live="polite"></div>
+  </div>
+
+  <div id="settingsScreen" class="hidden">
+    <h2 class="start-title">Настройки</h2>
+    <div class="start-menu" style="max-width: 600px;">
+      <label for="minFragmentLength" style="text-align: left; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px;">
+        Минимальная длина фрагмента (от 10 до 990, шаг 10):
+        <input type="number" id="minFragmentLength" min="10" max="990" step="10" style="width: 100%; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">
+      </label>
+      
+      <label for="mainFragmentLength" style="text-align: left; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px;">
+        Длина окна поиска разделителя (от 10 до 990, шаг 10):
+        <input type="number" id="mainFragmentLength" min="10" max="990" step="10" style="width: 100%; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">
+      </label>
+      
+      <label for="volumeSlider" style="text-align: left; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px;">
+        Громкость озвучки:
+        <input type="range" id="volumeSlider" min="0.3" max="1.0" step="0.1" style="width: 100%; margin-top: 10px;">
+        <span id="volumeValue" style="display: block; text-align: center; margin-top: 5px;"></span>
+      </label>
+      
+      <label for="currentFragmentNumber" style="text-align: left; padding: 15px; border: 2px solid #4CAF50; border-radius: 8px;">
+        Номер текущего фрагмента:
+        <input type="number" id="currentFragmentNumber" min="1" style="width: 100%; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">
+        <small style="display: block; margin-top: 5px; color: #666;" id="fragmentRangeInfo">Доступно фрагментов: 0</small>
+      </label>
+      
+      <label for="themeSelect" style="text-align: left; padding: 15px; border: 2px solid #4CAF50; border-radius:8px;">
+        Тема интерфейса:
+        <select id="themeSelect" style="width: 100%; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">
+          <option value="auto">Системная (по умолчанию)</option>
+          <option value="light">Светлая</option>
+          <option value="dark">Тёмная</option>
+        </select>
+      </label>
+    </div>
+    <div style="display: flex; gap: 10px; justify-content: center; margin-top: auto; padding-top: 20px;">
+      <button class="menu-item" id="applySettingsBtn" tabindex="0">Применить</button>
+      <button class="menu-item" id="cancelSettingsBtn" tabindex="0">Отмена</button>
+    </div>
+  </div>
+
+  <div id="infoModal" class="modal hidden">
+    <h2>Информация</h2>
+    <div class="modal-content" tabindex="-1">
+      <p>Программа для синтеза речи в браузерах (Chrome, Edge и др.).</p>
+      <p>Поддерживает форматы: TXT, HTML</p>
+      <p>Функции:</p>
+      <ul>
+        <li>Регулировка скорости и громкости</li>
+        <li>Навигация по фрагментам</li>
+        <li>Подсветка текущего фрагмента</li>
+        <li>Поддержка пользовательского словаря замен</li>
+        <li>Управление с клавиатуры</li>
+        <li>Сохранение позиции для последних 20 файлов</li>
+      </ul>
+      <p><strong>Горячие клавиши:</strong></p>
+      <ul>
+        <li>Пробел: Пуск/Пауза (работает на кнопках и основном экране, но не в полях ввода)</li>
+        <li><strong>Alt+K</strong>, <strong>Alt+Л</strong>, <strong>K</strong>, <strong>Л</strong>: Пуск/Пауза (работают везде)</li>
+        <li>←/→: Навигация по фрагментам</li>
+        <li><strong>Alt+← / Alt+→</strong>: Навигация по фрагментам (глобально)</li>
+        <li>↑/↓: Скорость (локально)</li>
+        <li><strong>Alt+↑ / Alt+↓</strong>: Скорость (глобально)</li>
+        <li>j / l: Громкость (j — тише, l — громче) и их русские аналоги о/д</li>
+        <li><strong>Alt+J / Alt+L</strong> (и русские аналоги): альтернативные комбинации для громкости</li>
+        <li><strong>Alt+S</strong>: Сохранить текущую позицию (только для файлов)</li>
+        <li><strong>Alt+B</strong>: Мгновенная остановка озвучки (работает везде)</li>
+        <li><strong>Alt++ / Alt+-</strong>: Размер шрифта</li>
+        <li><strong>Alt+F / Alt+А</strong>: Скрыть/показать панель управления (имитация полноэкранного режима)</li>
+        <li>Tab: Навигация по элементам</li>
+        <li>Escape: Закрыть модальное окно или вернуться в меню</li>
+      </ul>
+    </div>
+    <button class="close-btn" data-modal="infoModal" tabindex="0">Закрыть</button>
+  </div>
+
+  <div id="voiceModal" class="modal hidden">
+    <h2>Выбор голоса</h2>
+    <div class="modal-content">
+      <select id="voiceSelect" aria-label="Выберите голос"></select>
+      <div id="voiceInfo"></div>
+    </div>
+    <button class="close-btn" data-modal="voiceModal" tabindex="0">Применить</button>
+  </div>
+
+  <div id="dictModal" class="modal hidden">
+    <h2>Словарь замен</h2>
+    <div class="modal-content">
+      <p>Формат: <code>ключ=значение</code> или <code>'ключ'='значение'</code></p>
+      <div id="dictStatus" class="status" aria-live="polite"></div>
+      <p id="dictInfo" aria-live="polite"></p>
+      <div id="dictErrors" aria-live="polite"></div>
+    </div>
+    <button class="action-btn action-btn--danger" data-action="clearDictionary" tabindex="0">Очистить словарь</button>
+    <button class="close-btn" data-modal="dictModal" tabindex="0">Закрыть</button>
+  </div>
+
+  <input type="file" id="fileInput" accept=".txt,.html,.htm" class="visually-hidden" tabindex="-1">
+  <input type="file" id="dictInput" accept=".txt" class="visually-hidden" tabindex="-1">
+  
+  <script>
+    // ==================== УПРОЩЁННЫЙ STORAGE MANAGER ====================
+    const Storage = {
+      set(key, value) {
+        try {
+          localStorage.setItem('tts_' + key, JSON.stringify(value));
+          return true;
+        } catch (e) {
+          console.error('Storage: ошибка сохранения', e);
+          return false;
+        }
+      },
+      
+      get(key, defaultValue) {
+        try {
+          const item = localStorage.getItem('tts_' + key);
+          if (item) {
+            const parsed = JSON.parse(item);
+            return parsed;
+          }
+        } catch (e) {
+          console.error('Storage: ошибка загрузки', e);
+        }
+        return defaultValue;
+      }
+    };
+
+    function saveAllSettings() {
+      const settings = {
+        voice: selectedVoiceIndex,
+        fragment: minFragmentLength,
+        mainFragment: mainFragmentLength,
+        theme: themeSelect.value
+      };
+      Storage.set('settings', settings);
+      updateStatus('Настройки сохранены', 'info');
+    }
+
+    function loadAllSettings() {
+      const s = Storage.get('settings', {});
+      if (s.voice !== undefined) selectedVoiceIndex = s.voice;
+      if (s.fragment !== undefined) minFragmentLength = s.fragment;
+      document.getElementById('minFragmentLength').value = minFragmentLength;
+      if (s.mainFragment !== undefined) mainFragmentLength = s.mainFragment;
+      document.getElementById('mainFragmentLength').value = mainFragmentLength;
+      if (s.theme !== undefined) {
+        themeSelect.value = s.theme;
+      } else {
+        themeSelect.value = 'auto';
+      }
+      // Устанавливаем атрибут в соответствии с выбранным значением
+      document.documentElement.setAttribute('data-theme', themeSelect.value);
+      volumeSlider.value = currentVolume;
+      volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+      updateTextFontSize();
+      updateStatus('Настройки загружены', 'info');
+    }
+    // ==================== КОНЕЦ STORAGE MANAGER ====================
+
+    // ==================== СОХРАНЕНИЕ ПОЗИЦИИ ОЗВУЧКИ ====================
+    const POSITION_HISTORY_KEY = 'tts_position_history';
+    const MAX_HISTORY_ENTRIES = 20;
+
+    function getFileHash(filename) {
+      let hash = 0;
+      for (let i = 0; i < filename.length; i++) {
+        hash = ((hash << 5) - hash) + filename.charCodeAt(i);
+        hash = hash & hash;
+      }
+      return hash.toString(36);
+    }
+
+    function saveCurrentPosition() {
+      if (currentMode !== 'file') return false;
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files || !fileInput.files[0]) return false;
+      const fileName = fileInput.files[0].name;
+      const fileHash = getFileHash(fileName);
+      const positionData = {
+        hash: fileHash,
+        fileName: fileName,
+        fragmentIndex: currentFragmentIndex,
+        timestamp: Date.now(),
+        fragmentCount: fragments.length
+      };
+      const history = Storage.get(POSITION_HISTORY_KEY, []);
+      const filteredHistory = history.filter(entry => entry.hash !== fileHash);
+      filteredHistory.unshift(positionData);
+      const trimmedHistory = filteredHistory.slice(0, MAX_HISTORY_ENTRIES);
+      return Storage.set(POSITION_HISTORY_KEY, trimmedHistory);
+    }
+
+    function loadPositionForFile(filename) {
+      if (!filename) return 0;
+      const fileHash = getFileHash(filename);
+      const history = Storage.get(POSITION_HISTORY_KEY, []);
+      const entry = history.find(entry => entry.hash === fileHash);
+      if (entry && entry.fragmentIndex >= 0 && entry.fragmentIndex < entry.fragmentCount) {
+        return entry.fragmentIndex;
+      }
+      return 0;
+    }
+
+    function savePositionManually() {
+      if (currentMode !== 'file') {
+        updateStatus('Сохранение позиции доступно только для файлов', 'warning');
+        return;
+      }
+      if (fragments.length === 0) {
+        updateStatus('Нет фрагментов для сохранения позиции', 'warning');
+        return;
+      }
+      const saved = saveCurrentPosition();
+      if (saved) {
+        updateStatus(`Позиция сохранена: фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`, 'info');
+      } else {
+        updateStatus('Не удалось сохранить позицию', 'error');
+      }
+    }
+    // ==================== КОНЕЦ СОХРАНЕНИЯ ПОЗИЦИИ ====================
+
+    const CONFIG = {
+      MIN_SPEED: 0.25,
+      MAX_SPEED: 1.0,
+      SPEED_STEP: 0.05,
+      MIN_VOLUME: 0.3,
+      MAX_VOLUME: 1.0,
+      VOLUME_STEP: 0.1,
+      MIN_FONT_SIZE: 16,
+      MAX_FONT_SIZE: 96,
+      FONT_STEP: 8,
+      DEFAULT_MIN_FRAGMENT_LENGTH: 70,
+      DEFAULT_MAIN_FRAGMENT_LENGTH: 200,
+      STATUS_TIMEOUT: 5000
+    };
+
+    const synth = window.speechSynthesis;
+    const modalLastFocused = new WeakMap();
+    let voices = [];
+    let currentSpeed = 1.0;
+    let currentVolume = 1.0;
+    let currentFontSize = 32;
+    let currentFragmentIndex = 0;
+    let rawText = '';
+    let fragments = [];
+    let currentUtterance = null;
+    let isPlaying = false;
+    let selectedVoiceIndex = null;
+    let currentMode = '';
+    let replacementDict = new Map();
+    let replacementDictSortedKeys = [];
+    let minFragmentLength = CONFIG.DEFAULT_MIN_FRAGMENT_LENGTH;
+    let mainFragmentLength = CONFIG.DEFAULT_MAIN_FRAGMENT_LENGTH;
+    let statusClearTimeout = null;
+
+    // ==================== УПРАВЛЕНИЕ РАМКОЙ ФОКУСА ====================
+    const textContentEl = document.getElementById('textContent');
+    let focusTimer = null;
+    const FOCUS_DIM_DELAY = 3000; // 3 секунды до затухания
+
+    function clearFocusTimer() {
+      if (focusTimer) {
+        clearTimeout(focusTimer);
+        focusTimer = null;
+      }
+    }
+
+    function setFocusClass() {
+      clearFocusTimer();
+      textContentEl.classList.remove('dim-focus');
+      textContentEl.classList.add('has-focus');
+      focusTimer = setTimeout(() => {
+        textContentEl.classList.remove('has-focus');
+        textContentEl.classList.add('dim-focus');
+        focusTimer = null;
+      }, FOCUS_DIM_DELAY);
+    }
+
+    function removeFocusClasses() {
+      clearFocusTimer();
+      textContentEl.classList.remove('has-focus', 'dim-focus');
+    }
+
+    // Добавляем обработчики после загрузки DOM, но элементы уже доступны
+    if (textContentEl) {
+      textContentEl.addEventListener('focus', setFocusClass);
+      textContentEl.addEventListener('blur', removeFocusClasses);
+    }
+    // ==================== КОНЕЦ УПРАВЛЕНИЯ РАМКОЙ ====================
+
+    const startScreen = document.getElementById('startScreen');
+    const mainInterface = document.getElementById('mainInterface');
+    const textContent = document.getElementById('textContent');
+    const textInput = document.getElementById('textInput');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const playPauseBtn = document.getElementById('playPause');
+    const prevFragmentBtn = document.getElementById('prevFragment');
+    const nextFragmentBtn = document.getElementById('nextFragment');
+    const speedDownBtn = document.getElementById('speedDown');
+    const speedUpBtn = document.getElementById('speedUp');
+    const speedValue = document.getElementById('speedValue');
+    const statusContainer = document.getElementById('status');
+    const voiceInfo = document.getElementById('voiceInfo');
+    const dictStatus = document.getElementById('dictStatus');
+    const dictInfo = document.getElementById('dictInfo');
+    const dictErrors = document.getElementById('dictErrors');
+    const menuToggleBtn = document.getElementById('menuToggle');
+    const resumeTextBtn = document.getElementById('resumeText');
+    const volumeSlider = document.getElementById('volumeSlider');
+    const volumeValue = document.getElementById('volumeValue');
+    const themeSelect = document.getElementById('themeSelect');
+    const settingsScreen = document.getElementById('settingsScreen');
+    const mainFragmentLengthInput = document.getElementById('mainFragmentLength');
+    const currentFragmentNumberInput = document.getElementById('currentFragmentNumber');
+    const fragmentRangeInfo = document.getElementById('fragmentRangeInfo');
+
+    function initAccessibility() {
+      document.getElementById('speedDown').setAttribute('aria-label', 'Уменьшить скорость речи');
+      document.getElementById('speedUp').setAttribute('aria-label', 'Увеличить скорость речи');
+      document.getElementById('fontSmaller').setAttribute('aria-label', 'Уменьшить шрифт');
+      document.getElementById('fontLarger').setAttribute('aria-label', 'Увеличить шрифт');
+      document.getElementById('playPause').setAttribute('aria-label', 'Воспроизведение/Пауза');
+      document.getElementById('prevFragment').setAttribute('aria-label', 'Предыдущий фрагмент');
+      document.getElementById('nextFragment').setAttribute('aria-label', 'Следующий фрагмент');
+      document.getElementById('menuToggle').setAttribute('aria-label', 'Открыть главное меню');
+      statusContainer.setAttribute('aria-live', 'polite');
+      document.querySelectorAll('.modal').forEach(setupModalAccessibility);
+    }
+
+    function setupModalAccessibility(modal) {
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+          const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+          if (focusable.length === 0) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === first) {
+              e.preventDefault();
+              last.focus();
+            }
+          } else {
+            if (document.activeElement === last) {
+              e.preventDefault();
+              first.focus();
+            }
+          }
+        }
+      });
+    }
+
+    function openModal(modalId) {
+      const modal = document.getElementById(modalId);
+      modal.classList.remove('hidden');
+      modalLastFocused.set(modal, document.activeElement);
+      const overlay = createOverlay();
+      document.body.appendChild(overlay);
+      const firstFocusable = modal.querySelector('button, input, select') || modal.querySelector('.close-btn');
+      if (firstFocusable) firstFocusable.focus();
+      
+      if (modalId === 'infoModal') {
+        const content = modal.querySelector('.modal-content');
+        if (content) {
+          content.focus();
+        }
+      }
+    }
+
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      modal.classList.add('hidden');
+      const overlay = document.querySelector('.overlay');
+      if (overlay) overlay.remove();
+      const lastFocused = modalLastFocused.get(modal);
+      if (lastFocused && typeof lastFocused.focus === 'function') {
+        lastFocused.focus();
+      }
+      modalLastFocused.delete(modal);
+    }
+
+    function updateTextFontSize() {
+      const size = currentFontSize + 'px';
+      textContent.style.fontSize = size;
+      textInput.style.fontSize = size;
+      document.getElementById('fontValue').textContent = size;
+    }
+
+    document.getElementById('fontSmaller').addEventListener('click', () => {
+      if (currentFontSize > CONFIG.MIN_FONT_SIZE) {
+        currentFontSize -= CONFIG.FONT_STEP;
+        updateTextFontSize();
+        updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
+      }
+    });
+
+    document.getElementById('fontLarger').addEventListener('click', () => {
+      if (currentFontSize < CONFIG.MAX_FONT_SIZE) {
+        currentFontSize += CONFIG.FONT_STEP;
+        updateTextFontSize();
+        updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
+      }
+    });
+
+    updateTextFontSize();
+
+    function handleMenuKeypress(event, callback) {
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        callback();
+      }
+    }
+
+    function extractTextFromHtml(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const unsafeTags = ['script', 'style', 'noscript', 'iframe', 'object', 'embed'];
+      unsafeTags.forEach(tag => {
+        doc.querySelectorAll(tag).forEach(el => el.remove());
+      });
+      const walker = document.createTreeWalker(
+        doc.body || doc.documentElement,
+        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode(node) {
+            if (node.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const tag = node.tagName.toLowerCase();
+              if (/^(h[1-6]|p|div|section|article|header|footer|aside|nav|ul|ol|li|blockquote|pre|figure|table|tr|td|th|dl|dt|dd|address|main)$/i.test(tag)) {
+                return NodeFilter.FILTER_ACCEPT;
+              }
+              return NodeFilter.FILTER_SKIP;
+            }
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+      );
+      const lines = [];
+      let buffer = '';
+      function flush() {
+        if (buffer.trim()) {
+          lines.push(buffer);
+          buffer = '';
+        } else if (lines.length > 0 && lines[lines.length - 1] !== '') {
+          lines.push('');
+        }
+      }
+      let node;
+      while (node = walker.nextNode()) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          buffer += node.textContent;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const tag = node.tagName.toLowerCase();
+          if (tag === 'br') {
+            flush();
+          } else if (/^(li|td|th)$/i.test(tag)) {
+            buffer += '\t';
+          } else if (/^(h[1-6]|p|div|section|article|header|footer|aside|nav|blockquote|pre|figure|table|ul|ol|dl)$/i.test(tag)) {
+            flush();
+            if (lines.length === 0 || lines[lines.length - 1] !== '') {
+              lines.push('');
+            }
+          }
+        }
+      }
+      flush();
+      let result = lines.join('\n');
+      result = result.replace(/\n{3,}/g, '\n').trim();
+      return result;
+    }
+
+    function toggleFullscreen() {
+      const controls = document.querySelector('.control-row');
+      const status = document.getElementById('status');
+      const isHidden = controls.classList.contains('hidden');
+      
+      if (isHidden) {
+        // Выходим из полноэкранного режима – показываем панель
+        controls.classList.remove('hidden');
+        status.classList.remove('hidden');
+        updateStatus('Полноэкранный режим выключен', 'info');
+        // Если текстовое поле всё ещё в фокусе, перезапускаем таймер для яркой рамки
+        if (document.activeElement === textContentEl) {
+          setFocusClass();
+        }
+      } else {
+        // Включаем полноэкранный режим – скрываем панель
+        controls.classList.add('hidden');
+        status.classList.add('hidden');
+        updateStatus('Полноэкранный режим включён (ESC для выхода)', 'info');
+        // Принудительно убираем классы фокуса (рамка всё равно скрыта CSS, но так чище)
+        removeFocusClasses();
+      }
+    }
+
+    document.addEventListener('keydown', function(event) {
+      if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') {
+        if (event.key === 'Escape' && event.target.id === 'textInput') {
+          event.preventDefault();
+          const text = textInput.value.trim();
+          if (text === '') {
+            showStartScreen();
+          } else {
+            rawText = text;
+            fragments = splitIntoFragments(rawText);
+            currentFragmentIndex = 0;
+            textInput.classList.add('hidden');
+            textContent.classList.remove('hidden');
+            updateTextDisplay();
+            textContent.focus();
+            if (isPlaying) {
+              synth.cancel();
+              isPlaying = false;
+              playPauseBtn.textContent = '▶';
+            }
+            updateStatus(`Текст преобразован в ${fragments.length} фрагментов. Готово к озвучке.`);
+          }
+          return;
+        }
+        if (!event.altKey) return;
+      }
+      
+      const openModal = document.querySelector('.modal:not(.hidden)');
+      if (openModal) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeModal(openModal.id);
+          return;
+        }
+      }
+      if (event.key === 'Escape' && !settingsScreen.classList.contains('hidden')) {
+        event.preventDefault();
+        hideSettings();
+        return;
+      }
+      if (event.key === 'Escape') {
+        const controls = document.querySelector('.control-row');
+        if (controls.classList.contains('hidden') && !mainInterface.classList.contains('hidden')) {
+          event.preventDefault();
+          controls.classList.remove('hidden');
+          document.getElementById('status').classList.remove('hidden');
+          updateStatus('Полноэкранный режим выключен', 'info');
+          return;
+        }
+      }
+      
+      if (event.altKey) {
+        const key = event.key.toLowerCase();
+        switch(key) {
+          case 'f': case 'а':
+            event.preventDefault();
+            toggleFullscreen();
+            return;
+          case 'k': case 'л':
+            event.preventDefault();
+            playPauseBtn.click();
+            return;
+          case 'arrowleft':
+            event.preventDefault();
+            prevFragmentBtn.click();
+            return;
+          case 'arrowright':
+            event.preventDefault();
+            nextFragmentBtn.click();
+            return;
+          case 's': case 'ы':
+            if (currentMode === 'file') {
+              event.preventDefault();
+              savePositionManually();
+            }
+            return;
+          case 'b': case 'и':
+            event.preventDefault();
+            synth.cancel();
+            isPlaying = false;
+            playPauseBtn.textContent = '▶';
+            updateStatus('Озвучка прервана', 'info');
+            return;
+          case '+': case '=':
+            event.preventDefault();
+            if (currentFontSize < CONFIG.MAX_FONT_SIZE) {
+              currentFontSize += CONFIG.FONT_STEP;
+              updateTextFontSize();
+              updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
+            }
+            return;
+          case '-':
+            event.preventDefault();
+            if (currentFontSize > CONFIG.MIN_FONT_SIZE) {
+              currentFontSize -= CONFIG.FONT_STEP;
+              updateTextFontSize();
+              updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
+            }
+            return;
+          case 'arrowup':
+            event.preventDefault();
+            if (currentSpeed < CONFIG.MAX_SPEED) {
+              currentSpeed = Math.min(CONFIG.MAX_SPEED, currentSpeed + CONFIG.SPEED_STEP);
+              updateSpeed();
+              updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
+            }
+            return;
+          case 'arrowdown':
+            event.preventDefault();
+            if (currentSpeed > CONFIG.MIN_SPEED) {
+              currentSpeed = Math.max(CONFIG.MIN_SPEED, currentSpeed - CONFIG.SPEED_STEP);
+              updateSpeed();
+              updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
+            }
+            return;
+          case 'j': case 'о':
+            event.preventDefault();
+            if (currentVolume > CONFIG.MIN_VOLUME) {
+              currentVolume = Math.max(CONFIG.MIN_VOLUME, currentVolume - CONFIG.VOLUME_STEP);
+              updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
+              volumeSlider.value = currentVolume;
+              volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+            }
+            return;
+          case 'l': case 'д':
+            event.preventDefault();
+            if (currentVolume < CONFIG.MAX_VOLUME) {
+              currentVolume = Math.min(CONFIG.MAX_VOLUME, currentVolume + CONFIG.VOLUME_STEP);
+              updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
+              volumeSlider.value = currentVolume;
+              volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+            }
+            return;
+        }
+      }
+      
+      if (!startScreen.classList.contains('hidden')) return;
+      if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') return;
+      
+      switch(event.key) {
+        case 'k': case 'K': case 'л': case 'Л':
+          event.preventDefault();
+          playPauseBtn.click();
+          return;
+        case ' ':
+          if (event.target === textContent) {
+            event.preventDefault();
+            playPauseBtn.click();
+          }
+          return;
+        case 'Escape':
+          event.preventDefault();
+          const anyModal = document.querySelector('.modal:not(.hidden)');
+          if (anyModal) {
+            closeModal(anyModal.id);
+          } else {
+            showStartScreen();
+          }
+          return;
+        case 'ArrowLeft':
+          event.preventDefault();
+          prevFragmentBtn.click();
+          return;
+        case 'ArrowRight':
+          event.preventDefault();
+          nextFragmentBtn.click();
+          return;
+        case 'ArrowDown':
+          event.preventDefault();
+          speedDownBtn.click();
+          return;
+        case 'ArrowUp':
+          event.preventDefault();
+          speedUpBtn.click();
+          return;
+        case 'j': case 'J': case 'о': case 'О':
+          event.preventDefault();
+          if (currentVolume > CONFIG.MIN_VOLUME) {
+            currentVolume = Math.max(CONFIG.MIN_VOLUME, currentVolume - CONFIG.VOLUME_STEP);
+            updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
+            volumeSlider.value = currentVolume;
+            volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+          }
+          return;
+        case 'l': case 'L': case 'д': case 'Д':
+          event.preventDefault();
+          if (currentVolume < CONFIG.MAX_VOLUME) {
+            currentVolume = Math.min(CONFIG.MAX_VOLUME, currentVolume + CONFIG.VOLUME_STEP);
+            updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
+            volumeSlider.value = currentVolume;
+            volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+          }
+          return;
+      }
+    });
+
+    function showInfo() {
+      openModal('infoModal');
+    }
+
+    function showVoiceSelect() {
+      loadVoicesForModal();
+      if (voices.length === 0) {
+        const warmup = new SpeechSynthesisUtterance('');
+        warmup.volume = 0;
+        synth.speak(warmup);
+        synth.cancel();
+        setTimeout(() => {
+          loadVoicesForModal();
+          if (voices.length === 0) setTimeout(loadVoicesForModal, 500);
+        }, 300);
+      }
+      openModal('voiceModal');
+    }
+
+    function openFile() {
+      setTimeout(() => {
+        document.getElementById('fileInput').click();
+      }, 100);
+    }
+
+    function startTextInput() {
+      startScreen.classList.add('hidden');
+      mainInterface.classList.remove('hidden');
+      textInput.classList.remove('hidden');
+      textContent.classList.add('hidden');
+      currentMode = 'text';
+      rawText = '';
+      fragments = [];
+      updateStatus('Режим ввода текста. Введите или вставьте текст.');
+      setTimeout(() => textInput.focus(), 100);
+    }
+
+    function loadDictionary() { document.getElementById('dictInput').click(); }
+
+    function closeApp() {
+      if (confirm('Закрыть приложение?')) window.close();
+    }
+
+    function createOverlay() {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      overlay.onclick = function() {
+        document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+        overlay.remove();
+      };
+      return overlay;
+    }
+
+    function showStartScreen() {
+      if (isPlaying) {
+        synth.cancel();
+        isPlaying = false;
+        playPauseBtn.textContent = '▶';
+        updateStatus('Воспроизведение приостановлено', 'info');
+      }
+      mainInterface.classList.add('hidden');
+      settingsScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+      updateResumeTextVisibility();
+      setTimeout(() => {
+        if (!resumeTextBtn.classList.contains('hidden')) {
+          resumeTextBtn.focus();
+        } else {
+          const firstVisibleMenuItem = document.querySelector('.menu-item:not(.hidden)');
+          if (firstVisibleMenuItem) firstVisibleMenuItem.focus();
+        }
+      }, 100);
+    }
+
+    function updateResumeTextVisibility() {
+      if (currentMode) {
+        resumeTextBtn.classList.remove('hidden');
+      } else {
+        resumeTextBtn.classList.add('hidden');
+      }
+    }
+
+    function resumeText() {
+      startScreen.classList.add('hidden');
+      mainInterface.classList.remove('hidden');
+      if (currentMode === 'file') {
+        textContent.classList.remove('hidden');
+        textInput.classList.add('hidden');
+        updateTextDisplay();
+        textContent.focus();
+      } else if (currentMode === 'text') {
+        textInput.classList.remove('hidden');
+        textContent.classList.add('hidden');
+        setTimeout(() => textInput.focus(), 100);
+      }
+      updateStatus('Возвращение к тексту');
+    }
+
+    function escapeRegExp(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function applyReplacements(text) {
+      if (replacementDict.size === 0) return text;
+      const pattern = replacementDictSortedKeys.map(k => escapeRegExp(k)).join('|');
+      const regex = new RegExp(pattern, 'g');
+      return text.replace(regex, (match) => replacementDict.get(match));
+    }
+
+    function clearDictionary() {
+      replacementDict = new Map();
+      replacementDictSortedKeys = [];
+      dictInfo.textContent = 'Словарь очищен.';
+      dictErrors.textContent = '';
+      dictStatus.className = 'status';
+      dictStatus.textContent = '';
+      updateStatus('Словарь замен очищен', 'info');
+    }
+
+    function handleDictFile(file) {
+      if (!file) return;
+      openModal('dictModal');
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        let totalLines = 0, validEntries = 0, errors = [];
+        const newDict = new Map();
+        try {
+          const content = e.target.result;
+          const lines = content.split(/\r?\n/);
+          totalLines = lines.length;
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            const eqIndex = line.indexOf('=');
+            if (eqIndex === -1) {
+              errors.push(`Строка ${i + 1}: отсутствует символ равенства`);
+              continue;
+            }
+            let left = line.substring(0, eqIndex).trim();
+            let right = line.substring(eqIndex + 1).replace(/\r$/, '');
+            if ((left.startsWith('"') && left.endsWith('"')) ||
+                (left.startsWith("'") && left.endsWith("'"))) {
+              left = left.slice(1, -1);
+            }
+            if ((right.startsWith('"') && right.endsWith('"')) ||
+                (right.startsWith("'") && right.endsWith("'"))) {
+              right = right.slice(1, -1);
+            }
+            if (!left) {
+              errors.push(`Строка ${i + 1}: пустой ключ`);
+              continue;
+            }
+            newDict.set(left, right);
+            validEntries++;
+          }
+          replacementDict = newDict;
+          replacementDictSortedKeys = Array.from(newDict.keys()).sort((a, b) => b.length - a.length);
+          dictInfo.innerHTML = '';
+          const fileInfoLine = document.createElement('div');
+          fileInfoLine.textContent = 'Файл: ';
+          const fileNameSpan = document.createElement('strong');
+          fileNameSpan.textContent = file.name || 'без имени';
+          fileInfoLine.appendChild(fileNameSpan);
+          dictInfo.appendChild(fileInfoLine);
+          const statsLine = document.createElement('div');
+          statsLine.textContent = `Всего строк: ${totalLines} Валидных записей: ${validEntries}`;
+          dictInfo.appendChild(statsLine);
+          if (validEntries === 0 && totalLines > 0) {
+            const warningSpan = document.createElement('span');
+            warningSpan.style.color = '#e65100';
+            warningSpan.textContent = ' Нет корректных записей!';
+            statsLine.appendChild(warningSpan);
+          }
+          dictErrors.innerHTML = '';
+          if (errors.length > 0) {
+            dictStatus.textContent = 'Обнаружены ошибки:';
+            dictStatus.className = 'status warning';
+            const errorList = document.createElement('ul');
+            errorList.style.color = '#d32f2f';
+            errorList.style.fontSize = '0.9em';
+            errorList.style.marginTop = '8px';
+            errors.slice(0, 20).forEach(err => {
+              const li = document.createElement('li');
+              li.textContent = err;
+              errorList.appendChild(li);
+            });
+            if (errors.length > 20) {
+              const li = document.createElement('li');
+              li.textContent = `... и ещё ${errors.length - 20} ошибок`;
+              errorList.appendChild(li);
+            }
+            dictErrors.appendChild(errorList);
+          } else {
+            dictStatus.className = 'status';
+            dictStatus.textContent = 'Словарь успешно загружен';
+          }
+          const globalMsg = `Словарь "${file.name}" загружен (${validEntries} записей)` +
+            (errors.length ? `. Ошибок: ${errors.length}.` : '.');
+          updateStatus(globalMsg, errors.length ? 'warning' : 'info');
+          statusClearTimeout = setTimeout(() => {
+            if (statusContainer.textContent.startsWith('Словарь')) {
+              statusContainer.textContent = '';
+              statusContainer.className = 'status';
+              statusContainer.classList.add('hidden');
+            }
+          }, CONFIG.STATUS_TIMEOUT);
+        } catch (err) {
+          dictInfo.innerHTML = '';
+          const errorLine = document.createElement('div');
+          errorLine.textContent = 'Ошибка обработки файла: ' + (err.message || 'неизвестная ошибка');
+          dictInfo.appendChild(errorLine);
+          dictStatus.textContent = 'Не удалось обработать словарь';
+          dictStatus.className = 'status error';
+        }
+      };
+      reader.onerror = () => {
+        dictInfo.textContent = 'Ошибка чтения файла. Возможно, файл повреждён.';
+        dictStatus.textContent = 'Ошибка ввода-вывода';
+        dictStatus.className = 'status error';
+        dictErrors.textContent = '';
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    function splitIntoFragments(text) {
+      if (!text || typeof text !== 'string') return [];
+      const minLength = minFragmentLength;
+      const textLength = text.length;
+      const fragments = [];
+      let currentIndex = 0;
+
+      function isDigit(char) { return char >= '0' && char <= '9'; }
+      function isLowerCaseLetter(char) { return (char >= 'a' && char <= 'z') || (char >= 'а' && char <= 'я'); }
+      function isUpperCaseLetter(char) { return (char >= 'A' && char <= 'Z') || (char >= 'А' && char <= 'Я'); }
+
+      while (currentIndex < textLength) {
+        let fragmentEndIndex = currentIndex + minLength;
+        if (fragmentEndIndex > textLength) {
+          const fragment = text.substring(currentIndex);
+          if (fragment.trim()) fragments.push(fragment);
+          break;
+        }
+        let foundBreak = false;
+        let searchStart = fragmentEndIndex;
+        const mainSearchEnd = Math.min(searchStart + mainFragmentLength, textLength);
+        
+        for (let i = searchStart; i < mainSearchEnd; i++) {
+          const char = text[i];
+          if (char === '\n' || char === '\r' || char === '\v') {
+            fragmentEndIndex = i + 1;
+            foundBreak = true;
+            break;
+          }
+        }
+        if (!foundBreak) {
+          for (let i = searchStart; i < mainSearchEnd; i++) {
+            if (text[i] === '}') {
+              fragmentEndIndex = i + 1;
+              foundBreak = true;
+              break;
+            }
+          }
+        }
+        if (!foundBreak) {
+          for (let i = searchStart; i < mainSearchEnd; i++) {
+            const char = text[i];
+            const nextChar = i + 1 < textLength ? text[i + 1] : '';
+            if (char === '.') {
+              if (nextChar && (isDigit(nextChar) || isLowerCaseLetter(nextChar))) continue;
+              fragmentEndIndex = i + 1;
+              foundBreak = true;
+              break;
+            }
+            if (char === '!' || char === '?') {
+              if (nextChar && (isLowerCaseLetter(nextChar) || nextChar === '(')) continue;
+              fragmentEndIndex = i + 1;
+              foundBreak = true;
+              break;
+            }
+          }
+        }
+        if (!foundBreak) {
+          for (let i = searchStart; i < mainSearchEnd; i++) {
+            if (text[i] === ';') {
+              fragmentEndIndex = i + 1;
+              foundBreak = true;
+              break;
+            }
+          }
+        }
+        if (!foundBreak) {
+          const extendedSearchEnd = textLength;
+          for (let i = mainSearchEnd; i < extendedSearchEnd; i++) {
+            const char = text[i];
+            if (char === '\n' || char === '\r' || char === '\v' || 
+                char === '.' || char === ',' || char === ';') {
+              fragmentEndIndex = i + 1;
+              foundBreak = true;
+              break;
+            }
+          }
+        }
+        if (!foundBreak) {
+          fragmentEndIndex = textLength;
+        }
+        const fragment = text.substring(currentIndex, fragmentEndIndex);
+        if (fragment.trim()) fragments.push(fragment);
+        currentIndex = fragmentEndIndex;
+      }
+      return fragments;
+    }
+
+    function handleFileSelect(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          let content = e.target.result;
+          if (content.length > 10 * 1024 * 1024) {
+            updateStatus('Файл слишком большой (максимум 10 мегабайт)', 'error');
+            return;
+          }
+          const fileName = file.name.toLowerCase();
+          if (fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+            content = extractTextFromHtml(content);
+          }
+          rawText = content;
+          fragments = splitIntoFragments(rawText);
+          const savedPosition = loadPositionForFile(file.name);
+          currentFragmentIndex = savedPosition;
+          startScreen.classList.add('hidden');
+          mainInterface.classList.remove('hidden');
+          textContent.classList.remove('hidden');
+          textInput.classList.add('hidden');
+          currentMode = 'file';
+          updateTextDisplay();
+          textContent.focus();
+          let statusMsg = `Файл "${file.name}" загружен. Фрагментов: ${fragments.length}`;
+          if (savedPosition > 0) {
+            statusMsg += ` (позиция восстановлена: фрагмент ${savedPosition + 1})`;
+          }
+          updateStatus(statusMsg);
+        } catch (error) {
+          updateStatus('Ошибка чтения файла: ' + error.message, 'error');
+        }
+      };
+      reader.onerror = () => updateStatus('Ошибка при чтении файла', 'error');
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    function updateTextDisplay() {
+      if (fragments.length === 0) return;
+      textContent.replaceChildren();
+      fragments.forEach((fragment, index) => {
+        const isCurrent = index === currentFragmentIndex;
+        const span = document.createElement('span');
+        span.dataset.index = index;
+        if (isCurrent) span.className = 'current-fragment';
+        span.textContent = fragment;
+        textContent.appendChild(span);
+        textContent.appendChild(document.createTextNode(' '));
+      });
+
+      // Управление aria-current для улучшения навигации скринридера
+      const allSpans = textContent.querySelectorAll('span');
+      allSpans.forEach(span => span.removeAttribute('aria-current'));
+      const currentSpan = textContent.querySelector('.current-fragment');
+      if (currentSpan) {
+        currentSpan.setAttribute('aria-current', 'location');
+        currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    function getValidatedVoiceIndex() {
+      let index = selectedVoiceIndex;
+      if (index === null) index = parseInt(voiceSelect.value, 10);
+      if (isNaN(index) || index < 0 || index >= voices.length || !voices[index]) {
+        throw new Error('Выберите корректный голос');
+      }
+      return index;
+    }
+
+    function speakCurrentFragment() {
+      if (synth.speaking) synth.cancel();
+      if (currentFragmentIndex >= fragments.length) {
+        finalizePlayback('Текст закончился');
+        return;
+      }
+      let textToSpeak = fragments[currentFragmentIndex];
+      if (replacementDict.size > 0) textToSpeak = applyReplacements(textToSpeak);
+      try {
+        const voiceIndex = getValidatedVoiceIndex();
+        currentUtterance = new SpeechSynthesisUtterance(textToSpeak);
+        currentUtterance.voice = voices[voiceIndex];
+        currentUtterance.rate = currentSpeed;
+        currentUtterance.pitch = 1.0;
+        currentUtterance.volume = currentVolume;
+        currentUtterance.onstart = () => { updateTextDisplay(); };
+        currentUtterance.onend = () => {
+          currentFragmentIndex++;
+          if (currentFragmentIndex < fragments.length && isPlaying) {
+            setTimeout(speakCurrentFragment, 100);
+          } else {
+            finalizePlayback('Озвучка завершена');
+          }
+        };
+        currentUtterance.onerror = (event) => {
+          if (!event.error || ['interrupted', 'canceled', 'not-allowed'].includes(event.error)) return;
+          finalizePlayback('Ошибка воспроизведения', true);
+        };
+        synth.speak(currentUtterance);
+      } catch (error) {
+        finalizePlayback(error.message, true);
+      }
+    }
+
+    function finalizePlayback(msg, isError = false) {
+      isPlaying = false;
+      playPauseBtn.textContent = '▶';
+      updateStatus(msg, isError ? 'error' : 'info');
+    }
+
+    function updateStatus(message, type = 'info') {
+      statusContainer.textContent = message;
+      statusContainer.className = `status ${type}`;
+      if (!message || message.trim() === '') {
+        statusContainer.classList.add('hidden');
+      } else {
+        statusContainer.classList.remove('hidden');
+      }
+      if (statusClearTimeout) {
+        clearTimeout(statusClearTimeout);
+        statusClearTimeout = null;
+      }
+      if (type !== 'error') {
+        statusClearTimeout = setTimeout(() => {
+          if (statusContainer.textContent === message) {
+            statusContainer.textContent = '';
+            statusContainer.className = 'status';
+            statusContainer.classList.add('hidden');
+          }
+        }, CONFIG.STATUS_TIMEOUT);
+      }
+    }
+
+    function updateSpeed() {
+      speedValue.textContent = currentSpeed.toFixed(2) + 'x';
+      speedDownBtn.disabled = currentSpeed <= CONFIG.MIN_SPEED;
+      speedUpBtn.disabled = currentSpeed >= CONFIG.MAX_SPEED;
+    }
+
+    speedDownBtn.addEventListener('click', () => {
+      if (currentSpeed > CONFIG.MIN_SPEED) {
+        currentSpeed = Math.max(CONFIG.MIN_SPEED, currentSpeed - CONFIG.SPEED_STEP);
+        updateSpeed();
+        updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
+      }
+    });
+
+    speedUpBtn.addEventListener('click', () => {
+      if (currentSpeed < CONFIG.MAX_SPEED) {
+        currentSpeed = Math.min(CONFIG.MAX_SPEED, currentSpeed + CONFIG.SPEED_STEP);
+        updateSpeed();
+        updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
+      }
+    });
+
+    prevFragmentBtn.addEventListener('click', () => {
+      currentFragmentIndex = Math.max(0, currentFragmentIndex - 1);
+      updateTextDisplay();
+      updateStatus(`Фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`);
+      if (isPlaying) safeCancelAndSpeak();
+    });
+
+    nextFragmentBtn.addEventListener('click', () => {
+      currentFragmentIndex = Math.min(fragments.length - 1, currentFragmentIndex + 1);
+      updateTextDisplay();
+      updateStatus(`Фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`);
+      if (isPlaying) safeCancelAndSpeak();
+    });
+
+    function safeCancelAndSpeak() {
+      if (isPlaying) {
+        synth.cancel();
+        speakCurrentFragment();
+      }
+    }
+
+    playPauseBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        try { document.documentElement.requestFullscreen(); } catch (e) {}
+      }
+      if (isPlaying) {
+        synth.cancel();
+        isPlaying = false;
+        playPauseBtn.textContent = '▶';
+        updateStatus('Пауза');
+      } else {
+        if (currentMode === 'text') {
+          rawText = textInput.value.trim();
+          fragments = splitIntoFragments(rawText);
+        }
+        if (fragments.length === 0) {
+          updateStatus('Нет текста для чтения', 'error');
+          return;
+        }
+        if (currentFragmentIndex >= fragments.length) currentFragmentIndex = 0;
+        isPlaying = true;
+        playPauseBtn.textContent = '⏸';
+        if (currentMode === 'text' && document.activeElement !== textInput) {
+          textInput.classList.add('hidden');
+          textContent.classList.remove('hidden');
+          updateTextDisplay();
+        }
+        speakCurrentFragment();
+      }
+    });
+
+    function loadVoicesForModal() {
+      voices = synth.getVoices();
+      voiceSelect.innerHTML = '';
+
+      const lowerName = v => v.name.toLowerCase();
+      const lowerURI = v => v.voiceURI.toLowerCase();
+      const lang = v => v.lang || '';
+
+      const isEdge = v => lowerName(v).includes('microsoft') || lowerURI(v).includes('microsoft');
+      const isMultilingual = v => lowerName(v).includes('multilingual');
+
+      const browserLang = (navigator.language || (navigator.languages && navigator.languages[0]) || 'en').substring(0, 2).toLowerCase();
+      let browserLangName = browserLang;
+      try {
+        browserLangName = new Intl.DisplayNames(['ru'], { type: 'language' }).of(browserLang) || browserLang;
+      } catch (e) {}
+
+      const multilingual = [];
+      const browserLangVoices = [];
+      const russianVoices = [];
+      const englishVoices = [];
+      const usedIndices = new Set();
+
+      voices.forEach((v, index) => {
+        const language = lang(v).substring(0, 2).toLowerCase();
+        const isMulti = isEdge(v) && isMultilingual(v);
+
+        if (isMulti) {
+          multilingual.push(v);
+          usedIndices.add(index);
+        }
+        if (language === browserLang) {
+          browserLangVoices.push(v);
+          usedIndices.add(index);
+        }
+        if (language === 'ru') {
+          russianVoices.push(v);
+          usedIndices.add(index);
+        }
+        if (language === 'en' && !isMulti) {
+          englishVoices.push(v);
+          usedIndices.add(index);
+        }
+      });
+
+      const otherVoices = [];
+      voices.forEach((v, index) => {
+        if (!usedIndices.has(index)) {
+          otherVoices.push(v);
+        }
+      });
+
+      const groups = [
+        { label: 'Мультиязычные (Multilingual)', voices: multilingual },
+        { label: `Язык браузера: ${browserLangName} (${browserLang})`, voices: browserLangVoices },
+        { label: 'Русские голоса', voices: russianVoices },
+        { label: 'Английские голоса', voices: englishVoices },
+        { label: 'Остальные голоса', voices: otherVoices }
+      ];
+
+      groups.forEach(group => {
+        if (group.voices.length > 0) {
+          const optgroup = document.createElement('optgroup');
+          optgroup.label = group.label;
+          group.voices.forEach(v => {
+            const opt = document.createElement('option');
+            opt.textContent = `${v.name} (${v.lang})`;
+            opt.value = voices.indexOf(v);
+            optgroup.appendChild(opt);
+          });
+          voiceSelect.appendChild(optgroup);
+        }
+      });
+
+      if (selectedVoiceIndex !== null && voices[selectedVoiceIndex]) {
+        voiceSelect.value = selectedVoiceIndex;
+      }
+      voiceInfo.textContent = `Доступно голосов: ${voices.length}`;
+    }
+
+    voiceSelect.addEventListener('change', () => {
+      selectedVoiceIndex = parseInt(voiceSelect.value, 10);
+      saveAllSettings();
+    });
+
+    synth.addEventListener('voiceschanged', loadVoicesForModal);
+
+    menuToggleBtn.addEventListener('click', showStartScreen);
+
+    function showSettings() {
+      startScreen.classList.add('hidden');
+      mainInterface.classList.add('hidden');
+      settingsScreen.classList.remove('hidden');
+      if (fragments.length > 0) {
+        currentFragmentNumberInput.value = currentFragmentIndex + 1;
+        fragmentRangeInfo.textContent = `Доступно фрагментов: ${fragments.length}`;
+      } else {
+        currentFragmentNumberInput.value = 1;
+        fragmentRangeInfo.textContent = "Нет загруженного текста";
+      }
+      document.getElementById('applySettingsBtn').focus();
+    }
+
+    function hideSettings() {
+      settingsScreen.classList.add('hidden');
+      showStartScreen();
+    }
+
+    function applySettingsAndClose() {
+      const input = document.getElementById('minFragmentLength');
+      if (input && input.value !== '') {
+        let value = Number(input.value);
+        if (!isNaN(value)) {
+          minFragmentLength = Math.max(10, Math.min(990, Math.floor(value / 10) * 10));
+        }
+      }
+      const mainFragmentInput = document.getElementById('mainFragmentLength');
+      if (mainFragmentInput && mainFragmentInput.value !== '') {
+        let value = Number(mainFragmentInput.value);
+        if (!isNaN(value)) {
+          mainFragmentLength = Math.max(10, Math.min(990, Math.floor(value / 10) * 10));
+        }
+      }
+      const newNumber = parseInt(currentFragmentNumberInput.value);
+      if (!isNaN(newNumber) && fragments.length > 0) {
+        let adjustedNumber = newNumber;
+        if (adjustedNumber < 1) adjustedNumber = 1;
+        if (adjustedNumber > fragments.length) adjustedNumber = fragments.length;
+        const newIndex = adjustedNumber - 1;
+        if (newIndex !== currentFragmentIndex) {
+          currentFragmentIndex = newIndex;
+          updateTextDisplay();
+          updateStatus(`Позиция изменена на фрагмент ${currentFragmentIndex + 1}`, 'info');
+          if (isPlaying) {
+            synth.cancel();
+            isPlaying = false;
+            playPauseBtn.textContent = '▶';
+          }
+        }
+      }
+      saveAllSettings();
+      updateStatus(`Настройки применены: мин.фрагмент — ${minFragmentLength}, окно поиска — ${mainFragmentLength}`, 'info');
+      hideSettings();
+    }
+
+    updateSpeed();
+    initAccessibility();
+
+    window.addEventListener('load', () => {
+      loadAllSettings();
+      const firstMenuItem = document.querySelector('.menu-item:not(.hidden)');
+      if (firstMenuItem) firstMenuItem.focus();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Для кнопок меню (теперь button) достаточно обработчиков click
+      resumeTextBtn.addEventListener('click', resumeText);
+      document.getElementById('menuInfo').addEventListener('click', showInfo);
+      document.getElementById('menuVoice').addEventListener('click', showVoiceSelect);
+      document.getElementById('menuOpenFile').addEventListener('click', openFile);
+      document.getElementById('menuTextInput').addEventListener('click', startTextInput);
+      document.getElementById('menuLoadDict').addEventListener('click', loadDictionary);
+      document.getElementById('menuSavePosition').addEventListener('click', savePositionManually);
+      document.getElementById('menuSettings').addEventListener('click', showSettings);
+      document.getElementById('menuExit').addEventListener('click', closeApp);
+      document.getElementById('fileInput').addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+      document.getElementById('dictInput').addEventListener('change', (e) => handleDictFile(e.target.files[0]));
+      document.querySelectorAll('.close-btn').forEach(btn => {
+        const modalId = btn.dataset.modal;
+        const action = btn.dataset.action;
+        if (modalId) {
+          btn.addEventListener('click', () => closeModal(modalId));
+        } else if (action === 'clearDictionary') {
+          btn.addEventListener('click', clearDictionary);
+        }
+      });
+      
+      document.getElementById('applySettingsBtn').addEventListener('click', applySettingsAndClose);
+      document.getElementById('cancelSettingsBtn').addEventListener('click', hideSettings);
+      
+      volumeSlider.addEventListener('input', (e) => {
+        currentVolume = parseFloat(e.target.value);
+        volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+        updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
+      });
+      
+      themeSelect.addEventListener('change', (e) => {
+        document.documentElement.setAttribute('data-theme', e.target.value);
+        saveAllSettings();
+      });
+      
+      updateStatus('');
+
+      function trapTabInTextArea(e) {
+        if (e.key !== 'Tab') return;
+
+        const focusableElements = Array.from(
+          document.querySelectorAll('.control-row button, .control-row .menu-toggle, .control-row select, .control-row input')
+        ).filter(el => el.offsetParent !== null);
+
+        if (focusableElements.length === 0) return;
+
+        e.preventDefault();
+
+        if (e.shiftKey) {
+          focusableElements[focusableElements.length - 1].focus();
+        } else {
+          focusableElements[0].focus();
+        }
+      }
+
+      textInput.addEventListener('keydown', trapTabInTextArea);
+      textContent.addEventListener('keydown', trapTabInTextArea);
+
+      // ==================== ИЗМЕНЁННЫЙ ОБРАБОТЧИК TAB ====================
+      document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Tab') return;
+
+        const activeTextArea = !textInput.classList.contains('hidden') ? textInput :
+                               !textContent.classList.contains('hidden') ? textContent : null;
+        if (!activeTextArea) return;
+
+        // Если панель управления скрыта — показываем её, чтобы фокус не уходил за пределы страницы
+        const controlRow = document.querySelector('.control-row');
+        if (controlRow && controlRow.classList.contains('hidden')) {
+          controlRow.classList.remove('hidden');
+          const status = document.getElementById('status');
+          if (status) status.classList.remove('hidden');
+          updateStatus('Панель управления восстановлена для навигации');
+        }
+
+        const controlPanel = document.querySelector('.control-row');
+        if (!controlPanel) return;
+        const focusableControls = Array.from(
+          controlPanel.querySelectorAll('button, [tabindex]:not([tabindex="-1"])')
+        ).filter(el => el.offsetParent !== null && !el.disabled);
+
+        if (focusableControls.length === 0) return;
+
+        const firstControl = focusableControls[0];
+        const lastControl = focusableControls[focusableControls.length - 1];
+        const activeElement = document.activeElement;
+
+        if (activeElement === firstControl && e.shiftKey) {
+          e.preventDefault();
+          activeTextArea.focus();
+        }
+        else if (activeElement === lastControl && !e.shiftKey) {
+          e.preventDefault();
+          activeTextArea.focus();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
