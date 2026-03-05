@@ -631,6 +631,7 @@
       }
     }
 
+    // ==================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ИЗВЛЕЧЕНИЯ ТЕКСТА ИЗ HTML ====================
     function extractTextFromHtml(html) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
@@ -674,7 +675,16 @@
           if (tag === 'br') {
             flush();
           } else if (/^(li|td|th)$/i.test(tag)) {
-            buffer += '\t';
+            // Начинаем новый элемент списка/ячейки с новой строки (если ещё не в начале)
+            if (buffer.length > 0 && buffer[buffer.length - 1] !== '\n') {
+              buffer += '\n';
+            }
+            buffer += '\t';   // добавляем отступ
+          } else if (tag === 'tr') {
+            // Строка таблицы начинается с новой строки
+            if (buffer.length > 0 && buffer[buffer.length - 1] !== '\n') {
+              buffer += '\n';
+            }
           } else if (/^(h[1-6]|p|div|section|article|header|footer|aside|nav|blockquote|pre|figure|table|ul|ol|dl)$/i.test(tag)) {
             flush();
             if (lines.length === 0 || lines[lines.length - 1] !== '') {
@@ -688,6 +698,7 @@
       result = result.replace(/\n{3,}/g, '\n').trim();
       return result;
     }
+    // ==================== КОНЕЦ ИСПРАВЛЕННОЙ ФУНКЦИИ ====================
 
     function toggleFullscreen() {
       const controls = document.querySelector('.control-row');
@@ -1620,48 +1631,51 @@
       
       updateStatus('');
 
-      function trapTabInTextArea(e) {
-        if (e.key !== 'Tab') return;
-
-        const focusableElements = Array.from(
-          document.querySelectorAll('.control-row button, .control-row .menu-toggle, .control-row select, .control-row input')
-        ).filter(el => el.offsetParent !== null);
-
-        if (focusableElements.length === 0) return;
-
-        e.preventDefault();
-
-        if (e.shiftKey) {
-          focusableElements[focusableElements.length - 1].focus();
-        } else {
-          focusableElements[0].focus();
-        }
-      }
-
-      textInput.addEventListener('keydown', trapTabInTextArea);
-      textContent.addEventListener('keydown', trapTabInTextArea);
-
-      // ==================== ИЗМЕНЁННЫЙ ОБРАБОТЧИК TAB ====================
+      // ==================== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК TAB С ЗАМКНУТОЙ НАВИГАЦИЕЙ ====================
       document.addEventListener('keydown', function(e) {
         if (e.key !== 'Tab') return;
 
-        const activeTextArea = !textInput.classList.contains('hidden') ? textInput :
-                               !textContent.classList.contains('hidden') ? textContent : null;
-        if (!activeTextArea) return;
-
-        // Если панель управления скрыта — показываем её, чтобы фокус не уходил за пределы страницы
         const controlRow = document.querySelector('.control-row');
-        if (controlRow && controlRow.classList.contains('hidden')) {
-          controlRow.classList.remove('hidden');
-          const status = document.getElementById('status');
-          if (status) status.classList.remove('hidden');
-          updateStatus('Панель управления восстановлена для навигации');
+        const status = document.getElementById('status');
+        const textInput = document.getElementById('textInput');
+        const textContent = document.getElementById('textContent');
+
+        // Определяем, активно ли текстовое поле
+        const activeIsText = (document.activeElement === textInput && !textInput.classList.contains('hidden')) ||
+                             (document.activeElement === textContent && !textContent.classList.contains('hidden'));
+
+        // Если активна текстовая область
+        if (activeIsText) {
+          e.preventDefault(); // блокируем уход фокуса из приложения
+
+          // Если панель скрыта – показываем её
+          if (controlRow && controlRow.classList.contains('hidden')) {
+            controlRow.classList.remove('hidden');
+            if (status) status.classList.remove('hidden');
+            updateStatus('Панель управления восстановлена для навигации');
+          }
+
+          // Получаем фокусируемые элементы панели (видимые и не отключённые)
+          const focusable = controlRow 
+            ? Array.from(controlRow.querySelectorAll('button, [tabindex]:not([tabindex="-1"])'))
+                .filter(el => el.offsetParent !== null && !el.disabled)
+            : [];
+
+          if (focusable.length === 0) return; // на панели нет элементов – ничего не делаем
+
+          // Переводим фокус: первый при Tab, последний при Shift+Tab
+          if (e.shiftKey) {
+            focusable[focusable.length - 1].focus();
+          } else {
+            focusable[0].focus();
+          }
+          return;
         }
 
-        const controlPanel = document.querySelector('.control-row');
-        if (!controlPanel) return;
+        // Далее идёт логика замыкания фокуса между панелью и текстовым полем
+        if (!controlRow) return;
         const focusableControls = Array.from(
-          controlPanel.querySelectorAll('button, [tabindex]:not([tabindex="-1"])')
+          controlRow.querySelectorAll('button, [tabindex]:not([tabindex="-1"])')
         ).filter(el => el.offsetParent !== null && !el.disabled);
 
         if (focusableControls.length === 0) return;
@@ -1670,14 +1684,38 @@
         const lastControl = focusableControls[focusableControls.length - 1];
         const activeElement = document.activeElement;
 
+        // Определяем видимое текстовое поле
+        let activeTextElement = null;
+        if (!textInput.classList.contains('hidden')) {
+          activeTextElement = textInput;
+        } else if (!textContent.classList.contains('hidden')) {
+          activeTextElement = textContent;
+        }
+
+        // Если фокус на первом элементе и Shift+Tab – переходим на текстовое поле
         if (activeElement === firstControl && e.shiftKey) {
           e.preventDefault();
-          activeTextArea.focus();
+          if (activeTextElement) {
+            activeTextElement.focus();
+          } else {
+            // Если текстовое поле не видно (странная ситуация), замыкаем на последний
+            lastControl.focus();
+          }
+          return;
         }
-        else if (activeElement === lastControl && !e.shiftKey) {
+
+        // Если фокус на последнем элементе и Tab – переходим на текстовое поле
+        if (activeElement === lastControl && !e.shiftKey) {
           e.preventDefault();
-          activeTextArea.focus();
+          if (activeTextElement) {
+            activeTextElement.focus();
+          } else {
+            firstControl.focus();
+          }
+          return;
         }
+
+        // В остальных случаях (переход внутри панели между элементами) ничего не делаем – браузер сам переведёт фокус
       });
     });
   </script>
