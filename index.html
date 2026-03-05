@@ -43,6 +43,13 @@
       top: 0;
       z-index: 1;
     }
+
+    /* В полноэкранном режиме убираем верхний отступ, чтобы панель прижималась к краю */
+    :-webkit-full-screen .control-row,
+    :fullscreen .control-row {
+      padding-top: 0 !important;
+    }
+
     .speed-control, .font-size-control { display: flex; align-items: center; background: white; border-radius: 6px; padding: 4px; border: 1px solid #ddd; }
     .speed-btn, .font-btn { background: none; border: none; padding: 6px 10px; cursor: pointer; font-size: 16px; outline: none; border-radius: 3px; }
     .speed-btn:hover, .font-btn:hover { background: #f0f0f0; }
