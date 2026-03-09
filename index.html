@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>TTS для браузера</title>
   <style>
+    /* все стили без изменений */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; height: 100vh; overflow: hidden; background: #fafafa; color: #333; }
     html:-webkit-full-screen, html:fullscreen { overflow: hidden; }
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-    /* ИСПРАВЛЕНИЕ: гарантированное скрытие всего содержимого стартового экрана */
     #startScreen.hidden,
     #startScreen.hidden * {
       display: none !important;
@@ -28,7 +28,6 @@
     .hidden { display: none !important; }
 
     #mainInterface { height: 100vh; display: flex; flex-direction: column; }
-    /* Панель управления с отступом под системную строку состояния и принудительным пересчётом позиции */
     .control-row { 
       display: flex; 
       align-items: center; 
@@ -38,13 +37,12 @@
       background: #f5f5f5; 
       border-bottom: 1px solid #ddd; 
       flex-wrap: wrap;
-      transform: translateZ(0); /* аппаратное ускорение */
-      position: sticky;        /* заставляет Edge пересчитывать safe-area при изменениях */
+      transform: translateZ(0);
+      position: sticky;
       top: 0;
       z-index: 1;
     }
 
-    /* В полноэкранном режиме убираем верхний отступ, чтобы панель прижималась к краю */
     :-webkit-full-screen .control-row,
     :fullscreen .control-row {
       padding-top: 0 !important;
@@ -78,7 +76,6 @@
 
     #settingsScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1002; display: flex; flex-direction: column; overflow: hidden; padding: 40px; }
 
-    /* ===== ТЁМНАЯ ТЕМА (СИСТЕМНАЯ) ===== */
     @media (prefers-color-scheme: dark) {
       body, #textInput, .text-container { background: #1e1e1e; color: #e0e0e0; }
       #startScreen, .modal, .control-row { background: #2a2a2a; }
@@ -89,7 +86,6 @@
       .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
     }
 
-    /* ===== ЯВНАЯ ТЁМНАЯ ТЕМА (ПЕРЕОПРЕДЕЛЯЕТ СИСТЕМНУЮ) ===== */
     html[data-theme="dark"] body,
     html[data-theme="dark"] #textInput,
     html[data-theme="dark"] .text-container { background: #1e1e1e; color: #e0e0e0; }
@@ -105,7 +101,6 @@
     html[data-theme="dark"] .status.warning { background: #3e2f0b; color: #ffb74d; }
     html[data-theme="dark"] .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
 
-    /* ===== ЯВНАЯ СВЕТЛАЯ ТЕМА (ПЕРЕОПРЕДЕЛЯЕТ СИСТЕМНУЮ) ===== */
     html[data-theme="light"] body,
     html[data-theme="light"] #textInput,
     html[data-theme="light"] .text-container { background: #fafafa; color: #333; }
@@ -121,8 +116,6 @@
     html[data-theme="light"] .status.warning { background: #fff3e0; color: #e65100; }
     html[data-theme="light"] .status:not(.error):not(.warning) { background: #e8f5e8; color: #333; }
 
-    /* ===== ПОДСВЕТКА ТЕКУЩЕГО ФРАГМЕНТА (В ЗАВИСИМОСТИ ОТ ТЕМЫ) ===== */
-    /* Явная светлая тема */
     html[data-theme="light"] .current-fragment {
       background: #333 !important;
       color: white !important;
@@ -130,7 +123,6 @@
       padding: 2px 4px;
       border-radius: 3px;
     }
-    /* Явная тёмная тема */
     html[data-theme="dark"] .current-fragment {
       background: #FFD700 !important;
       color: #000 !important;
@@ -139,7 +131,6 @@
       border-radius: 3px;
       font-weight: bold;
     }
-    /* Системная тема (авто) – используем системные цвета выделения */
     html[data-theme="auto"] .current-fragment {
       background: Highlight !important;
       color: HighlightText !important;
@@ -147,33 +138,26 @@
       border-radius: 3px;
     }
 
-    /* === ДОБАВЛЕННЫЕ ПРАВИЛА ДЛЯ УПРАВЛЕНИЯ РАМКОЙ ФОКУСА === */
-    /* Яркая зелёная рамка сразу после фокуса */
     #textContent.has-focus {
       outline: none !important;
       box-shadow: 0 0 0 6px #4CAF50, 0 0 0 6px rgba(76, 175, 80, 0.3) !important;
     }
-
-    /* Приглушённая рамка через несколько секунд */
     #textContent.dim-focus {
       outline: none !important;
       box-shadow: 0 0 0 2px rgba(128, 128, 128, 0.5) !important;
     }
-
-    /* В полноэкранном режиме (когда панель управления скрыта) убираем любую рамку фокуса */
     .control-row.hidden + .text-container #textContent:focus,
     .control-row.hidden + .text-container #textContent.has-focus,
     .control-row.hidden + .text-container #textContent.dim-focus {
       box-shadow: none !important;
     }
-
-    /* Уменьшенный отступ при скрытой панели управления */
     .control-row.hidden + .text-container {
       padding: 6px;
     }
   </style>
 </head>
 <body>
+  <!-- разметка без изменений -->
   <div id="startScreen">
     <h1 class="start-title">TTS для браузера</h1>
     <div class="start-menu">
@@ -255,7 +239,6 @@
     </div>
   </div>
 
-  <!-- Модальное окно "Информация" с исправленным выделением клавиш и уточнением Escape -->
   <div id="infoModal" class="modal hidden">
     <h2>Информация</h2>
     <div class="modal-content" tabindex="-1">
@@ -289,7 +272,6 @@
         <li><strong>Tab</strong> и <strong>Shift+Tab</strong>: Навигация по элементам</li>
         <li><strong>Escape</strong>: Закрыть модальное окно, вернуться в меню или (в режиме ввода текста) переключиться в режим озвучки</li>
       </ul>
-      <!-- ДОБАВЛЕНО: примечание для мобильных устройств -->
       <p><strong>Важно для мобильных устройств:</strong></p>
       <ul>
         <li>В мобильном Edge сразу после загрузки (или перезагрузки) приложения нужно активировать голоса. Для этого выделите слово в названии приложения и вызовите встроенную функцию браузера «Прочесть вслух». После этого можно выбирать голоса в самом приложении.</li>
@@ -373,7 +355,6 @@
       } else {
         themeSelect.value = 'auto';
       }
-      // Устанавливаем атрибут в соответствии с выбранным значением
       document.documentElement.setAttribute('data-theme', themeSelect.value);
       volumeSlider.value = currentVolume;
       volumeValue.textContent = Math.round(currentVolume * 100) + '%';
@@ -481,7 +462,7 @@
     // ==================== УПРАВЛЕНИЕ РАМКОЙ ФОКУСА ====================
     const textContentEl = document.getElementById('textContent');
     let focusTimer = null;
-    const FOCUS_DIM_DELAY = 3000; // 3 секунды до затухания
+    const FOCUS_DIM_DELAY = 3000;
 
     function clearFocusTimer() {
       if (focusTimer) {
@@ -506,7 +487,6 @@
       textContentEl.classList.remove('has-focus', 'dim-focus');
     }
 
-    // Добавляем обработчики после загрузки DOM, но элементы уже доступны
     if (textContentEl) {
       textContentEl.addEventListener('focus', setFocusClass);
       textContentEl.addEventListener('blur', removeFocusClasses);
@@ -612,20 +592,64 @@
       document.getElementById('fontValue').textContent = size;
     }
 
-    document.getElementById('fontSmaller').addEventListener('click', () => {
-      if (currentFontSize > CONFIG.MIN_FONT_SIZE) {
-        currentFontSize -= CONFIG.FONT_STEP;
-        updateTextFontSize();
+    // ========== НОВЫЕ ФУНКЦИИ ДЛЯ УПРАВЛЕНИЯ ПАРАМЕТРАМИ ==========
+    function adjustVolume(delta) {
+      const newVolume = currentVolume + delta * CONFIG.VOLUME_STEP;
+      if (newVolume >= CONFIG.MIN_VOLUME && newVolume <= CONFIG.MAX_VOLUME) {
+        currentVolume = newVolume;
+        volumeSlider.value = currentVolume;
+        volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+        updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
+      }
+    }
+
+    function adjustSpeed(delta) {
+      const newSpeed = currentSpeed + delta * CONFIG.SPEED_STEP;
+      if (newSpeed >= CONFIG.MIN_SPEED && newSpeed <= CONFIG.MAX_SPEED) {
+        currentSpeed = newSpeed;
+        updateSpeed(); // обновляет speedValue и состояние кнопок
+        updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
+      }
+    }
+
+    function adjustFontSize(delta) {
+      const newSize = currentFontSize + delta * CONFIG.FONT_STEP;
+      if (newSize >= CONFIG.MIN_FONT_SIZE && newSize <= CONFIG.MAX_FONT_SIZE) {
+        currentFontSize = newSize;
+        updateTextFontSize(); // обновляет стили и отображение fontValue
         updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
       }
+    }
+    // ===============================================================
+
+    // ========== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК ESCAPE ==========
+    function toggleFullscreen() {
+      const controls = document.querySelector('.control-row');
+      const status = document.getElementById('status');
+      const isHidden = controls.classList.contains('hidden');
+      
+      if (isHidden) {
+        controls.classList.remove('hidden');
+        status.classList.remove('hidden');
+        updateStatus('Полноэкранный режим выключен', 'info');
+        if (document.activeElement === textContentEl) {
+          setFocusClass();
+        }
+      } else {
+        controls.classList.add('hidden');
+        status.classList.add('hidden');
+        updateStatus('Полноэкранный режим включён (ESC для выхода)', 'info');
+        removeFocusClasses();
+      }
+    }
+    // ====================================================
+
+    document.getElementById('fontSmaller').addEventListener('click', () => {
+      adjustFontSize(-1);
     });
 
     document.getElementById('fontLarger').addEventListener('click', () => {
-      if (currentFontSize < CONFIG.MAX_FONT_SIZE) {
-        currentFontSize += CONFIG.FONT_STEP;
-        updateTextFontSize();
-        updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
-      }
+      adjustFontSize(+1);
     });
 
     updateTextFontSize();
@@ -681,13 +705,11 @@
           if (tag === 'br') {
             flush();
           } else if (/^(li|td|th)$/i.test(tag)) {
-            // Начинаем новый элемент списка/ячейки с новой строки (если ещё не в начале)
             if (buffer.length > 0 && buffer[buffer.length - 1] !== '\n') {
               buffer += '\n';
             }
-            buffer += '\t';   // добавляем отступ
+            buffer += '\t';
           } else if (tag === 'tr') {
-            // Строка таблицы начинается с новой строки
             if (buffer.length > 0 && buffer[buffer.length - 1] !== '\n') {
               buffer += '\n';
             }
@@ -705,30 +727,6 @@
       return result;
     }
     // ==================== КОНЕЦ ИСПРАВЛЕННОЙ ФУНКЦИИ ====================
-
-    function toggleFullscreen() {
-      const controls = document.querySelector('.control-row');
-      const status = document.getElementById('status');
-      const isHidden = controls.classList.contains('hidden');
-      
-      if (isHidden) {
-        // Выходим из полноэкранного режима – показываем панель
-        controls.classList.remove('hidden');
-        status.classList.remove('hidden');
-        updateStatus('Полноэкранный режим выключен', 'info');
-        // Если текстовое поле всё ещё в фокусе, перезапускаем таймер для яркой рамки
-        if (document.activeElement === textContentEl) {
-          setFocusClass();
-        }
-      } else {
-        // Включаем полноэкранный режим – скрываем панель
-        controls.classList.add('hidden');
-        status.classList.add('hidden');
-        updateStatus('Полноэкранный режим включён (ESC для выхода)', 'info');
-        // Принудительно убираем классы фокуса (рамка всё равно скрыта CSS, но так чище)
-        removeFocusClasses();
-      }
-    }
 
     document.addEventListener('keydown', function(event) {
       if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') {
@@ -770,13 +768,12 @@
         hideSettings();
         return;
       }
+      // Используем toggleFullscreen вместо дублирования кода
       if (event.key === 'Escape') {
         const controls = document.querySelector('.control-row');
         if (controls.classList.contains('hidden') && !mainInterface.classList.contains('hidden')) {
           event.preventDefault();
-          controls.classList.remove('hidden');
-          document.getElementById('status').classList.remove('hidden');
-          updateStatus('Полноэкранный режим выключен', 'info');
+          toggleFullscreen();
           return;
         }
       }
@@ -815,53 +812,27 @@
             return;
           case '+': case '=':
             event.preventDefault();
-            if (currentFontSize < CONFIG.MAX_FONT_SIZE) {
-              currentFontSize += CONFIG.FONT_STEP;
-              updateTextFontSize();
-              updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
-            }
+            adjustFontSize(+1);
             return;
           case '-':
             event.preventDefault();
-            if (currentFontSize > CONFIG.MIN_FONT_SIZE) {
-              currentFontSize -= CONFIG.FONT_STEP;
-              updateTextFontSize();
-              updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
-            }
+            adjustFontSize(-1);
             return;
           case 'arrowup':
             event.preventDefault();
-            if (currentSpeed < CONFIG.MAX_SPEED) {
-              currentSpeed = Math.min(CONFIG.MAX_SPEED, currentSpeed + CONFIG.SPEED_STEP);
-              updateSpeed();
-              updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
-            }
+            adjustSpeed(+1);
             return;
           case 'arrowdown':
             event.preventDefault();
-            if (currentSpeed > CONFIG.MIN_SPEED) {
-              currentSpeed = Math.max(CONFIG.MIN_SPEED, currentSpeed - CONFIG.SPEED_STEP);
-              updateSpeed();
-              updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
-            }
+            adjustSpeed(-1);
             return;
           case 'j': case 'о':
             event.preventDefault();
-            if (currentVolume > CONFIG.MIN_VOLUME) {
-              currentVolume = Math.max(CONFIG.MIN_VOLUME, currentVolume - CONFIG.VOLUME_STEP);
-              updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
-              volumeSlider.value = currentVolume;
-              volumeValue.textContent = Math.round(currentVolume * 100) + '%';
-            }
+            adjustVolume(-1);
             return;
           case 'l': case 'д':
             event.preventDefault();
-            if (currentVolume < CONFIG.MAX_VOLUME) {
-              currentVolume = Math.min(CONFIG.MAX_VOLUME, currentVolume + CONFIG.VOLUME_STEP);
-              updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
-              volumeSlider.value = currentVolume;
-              volumeValue.textContent = Math.round(currentVolume * 100) + '%';
-            }
+            adjustVolume(+1);
             return;
         }
       }
@@ -899,29 +870,19 @@
           return;
         case 'ArrowDown':
           event.preventDefault();
-          speedDownBtn.click();
+          adjustSpeed(-1);
           return;
         case 'ArrowUp':
           event.preventDefault();
-          speedUpBtn.click();
+          adjustSpeed(+1);
           return;
         case 'j': case 'J': case 'о': case 'О':
           event.preventDefault();
-          if (currentVolume > CONFIG.MIN_VOLUME) {
-            currentVolume = Math.max(CONFIG.MIN_VOLUME, currentVolume - CONFIG.VOLUME_STEP);
-            updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
-            volumeSlider.value = currentVolume;
-            volumeValue.textContent = Math.round(currentVolume * 100) + '%';
-          }
+          adjustVolume(-1);
           return;
         case 'l': case 'L': case 'д': case 'Д':
           event.preventDefault();
-          if (currentVolume < CONFIG.MAX_VOLUME) {
-            currentVolume = Math.min(CONFIG.MAX_VOLUME, currentVolume + CONFIG.VOLUME_STEP);
-            updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
-            volumeSlider.value = currentVolume;
-            volumeValue.textContent = Math.round(currentVolume * 100) + '%';
-          }
+          adjustVolume(+1);
           return;
       }
     });
@@ -1289,7 +1250,6 @@
         textContent.appendChild(document.createTextNode(' '));
       });
 
-      // Управление aria-current для улучшения навигации скринридера
       const allSpans = textContent.querySelectorAll('span');
       allSpans.forEach(span => span.removeAttribute('aria-current'));
       const currentSpan = textContent.querySelector('.current-fragment');
@@ -1378,19 +1338,11 @@
     }
 
     speedDownBtn.addEventListener('click', () => {
-      if (currentSpeed > CONFIG.MIN_SPEED) {
-        currentSpeed = Math.max(CONFIG.MIN_SPEED, currentSpeed - CONFIG.SPEED_STEP);
-        updateSpeed();
-        updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
-      }
+      adjustSpeed(-1);
     });
 
     speedUpBtn.addEventListener('click', () => {
-      if (currentSpeed < CONFIG.MAX_SPEED) {
-        currentSpeed = Math.min(CONFIG.MAX_SPEED, currentSpeed + CONFIG.SPEED_STEP);
-        updateSpeed();
-        updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
-      }
+      adjustSpeed(+1);
     });
 
     prevFragmentBtn.addEventListener('click', () => {
@@ -1599,7 +1551,6 @@
     });
 
     document.addEventListener('DOMContentLoaded', () => {
-      // Для кнопок меню (теперь button) достаточно обработчиков click
       resumeTextBtn.addEventListener('click', resumeText);
       document.getElementById('menuInfo').addEventListener('click', showInfo);
       document.getElementById('menuVoice').addEventListener('click', showVoiceSelect);
@@ -1637,7 +1588,6 @@
       
       updateStatus('');
 
-      // ==================== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК TAB С ЗАМКНУТОЙ НАВИГАЦИЕЙ ====================
       document.addEventListener('keydown', function(e) {
         if (e.key !== 'Tab') return;
 
@@ -1646,30 +1596,25 @@
         const textInput = document.getElementById('textInput');
         const textContent = document.getElementById('textContent');
 
-        // Определяем, активно ли текстовое поле
         const activeIsText = (document.activeElement === textInput && !textInput.classList.contains('hidden')) ||
                              (document.activeElement === textContent && !textContent.classList.contains('hidden'));
 
-        // Если активна текстовая область
         if (activeIsText) {
-          e.preventDefault(); // блокируем уход фокуса из приложения
+          e.preventDefault();
 
-          // Если панель скрыта – показываем её
           if (controlRow && controlRow.classList.contains('hidden')) {
             controlRow.classList.remove('hidden');
             if (status) status.classList.remove('hidden');
             updateStatus('Панель управления восстановлена для навигации');
           }
 
-          // Получаем фокусируемые элементы панели (видимые и не отключённые)
           const focusable = controlRow 
             ? Array.from(controlRow.querySelectorAll('button, [tabindex]:not([tabindex="-1"])'))
                 .filter(el => el.offsetParent !== null && !el.disabled)
             : [];
 
-          if (focusable.length === 0) return; // на панели нет элементов – ничего не делаем
+          if (focusable.length === 0) return;
 
-          // Переводим фокус: первый при Tab, последний при Shift+Tab
           if (e.shiftKey) {
             focusable[focusable.length - 1].focus();
           } else {
@@ -1678,7 +1623,6 @@
           return;
         }
 
-        // Далее идёт логика замыкания фокуса между панелью и текстовым полем
         if (!controlRow) return;
         const focusableControls = Array.from(
           controlRow.querySelectorAll('button, [tabindex]:not([tabindex="-1"])')
@@ -1690,7 +1634,6 @@
         const lastControl = focusableControls[focusableControls.length - 1];
         const activeElement = document.activeElement;
 
-        // Определяем видимое текстовое поле
         let activeTextElement = null;
         if (!textInput.classList.contains('hidden')) {
           activeTextElement = textInput;
@@ -1698,19 +1641,16 @@
           activeTextElement = textContent;
         }
 
-        // Если фокус на первом элементе и Shift+Tab – переходим на текстовое поле
         if (activeElement === firstControl && e.shiftKey) {
           e.preventDefault();
           if (activeTextElement) {
             activeTextElement.focus();
           } else {
-            // Если текстовое поле не видно (странная ситуация), замыкаем на последний
             lastControl.focus();
           }
           return;
         }
 
-        // Если фокус на последнем элементе и Tab – переходим на текстовое поле
         if (activeElement === lastControl && !e.shiftKey) {
           e.preventDefault();
           if (activeTextElement) {
@@ -1720,8 +1660,6 @@
           }
           return;
         }
-
-        // В остальных случаях (переход внутри панели между элементами) ничего не делаем – браузер сам переведёт фокус
       });
     });
   </script>
