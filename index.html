@@ -154,12 +154,25 @@
     .control-row.hidden + .text-container {
       padding: 6px;
     }
+
+    /* Сообщение о неподдерживаемом браузере */
+    #noTTSMessage {
+      color: #d32f2f;
+      text-align: center;
+      margin: 20px;
+      padding: 10px;
+      border: 1px solid #d32f2f;
+      border-radius: 8px;
+      background: #ffebee;
+    }
   </style>
 </head>
 <body>
-  <!-- разметка без изменений -->
+  <!-- разметка без изменений, добавлен блок сообщения -->
   <div id="startScreen">
     <h1 class="start-title">TTS для браузера</h1>
+    <!-- Блок сообщения о неподдерживаемом браузере (скрыт по умолчанию) -->
+    <div id="noTTSMessage" class="hidden">⚠️ Ваш браузер не поддерживает синтез речи. Функции озвучки будут недоступны.</div>
     <div class="start-menu">
       <button id="resumeText" class="menu-item hidden">Вернуться к тексту</button>
       <button id="menuInfo" class="menu-item">Информация</button>
@@ -425,9 +438,10 @@
     }
     // ==================== КОНЕЦ СОХРАНЕНИЯ ПОЗИЦИИ ====================
 
+    // ========== ИЗМЕНЁННЫЙ ДИАПАЗОН СКОРОСТИ ==========
     const CONFIG = {
-      MIN_SPEED: 0.25,
-      MAX_SPEED: 1.0,
+      MIN_SPEED: 0.1,
+      MAX_SPEED: 2.0,
       SPEED_STEP: 0.05,
       MIN_VOLUME: 0.3,
       MAX_VOLUME: 1.0,
@@ -439,6 +453,7 @@
       DEFAULT_MAIN_FRAGMENT_LENGTH: 200,
       STATUS_TIMEOUT: 5000
     };
+    // ==================================================
 
     const synth = window.speechSynthesis;
     const modalLastFocused = new WeakMap();
@@ -458,6 +473,13 @@
     let minFragmentLength = CONFIG.DEFAULT_MIN_FRAGMENT_LENGTH;
     let mainFragmentLength = CONFIG.DEFAULT_MAIN_FRAGMENT_LENGTH;
     let statusClearTimeout = null;
+
+    // ==================== ПРОВЕРКА ПОДДЕРЖКИ SPEECH SYNTHESIS ====================
+    if (!window.speechSynthesis) {
+      document.getElementById('noTTSMessage').classList.remove('hidden');
+      // По условию достаточно только показать сообщение, блокировка не требуется
+    }
+    // =============================================================================
 
     // ==================== УПРАВЛЕНИЕ РАМКОЙ ФОКУСА ====================
     const textContentEl = document.getElementById('textContent');
@@ -592,24 +614,35 @@
       document.getElementById('fontValue').textContent = size;
     }
 
-    // ========== НОВЫЕ ФУНКЦИИ ДЛЯ УПРАВЛЕНИЯ ПАРАМЕТРАМИ ==========
+    // ========== ИСПРАВЛЕННЫЕ ФУНКЦИИ УПРАВЛЕНИЯ ПАРАМЕТРАМИ ==========
     function adjustVolume(delta) {
-      const newVolume = currentVolume + delta * CONFIG.VOLUME_STEP;
-      if (newVolume >= CONFIG.MIN_VOLUME && newVolume <= CONFIG.MAX_VOLUME) {
-        currentVolume = newVolume;
-        volumeSlider.value = currentVolume;
-        volumeValue.textContent = Math.round(currentVolume * 100) + '%';
-        updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
-      }
+      // Используем целочисленный подход для точности
+      const minH = CONFIG.MIN_VOLUME * 10;
+      const maxH = CONFIG.MAX_VOLUME * 10;
+      const stepH = CONFIG.VOLUME_STEP * 10;
+      let currentH = Math.round(currentVolume * 10);
+      let newH = currentH + delta * stepH;
+      newH = Math.max(minH, Math.min(maxH, newH));
+      // Округляем до ближайшего шага (шаг 1 в десятых долях)
+      newH = Math.round(newH / stepH) * stepH;
+      currentVolume = newH / 10;
+      volumeSlider.value = currentVolume;
+      volumeValue.textContent = Math.round(currentVolume * 100) + '%';
+      updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
     }
 
     function adjustSpeed(delta) {
-      const newSpeed = currentSpeed + delta * CONFIG.SPEED_STEP;
-      if (newSpeed >= CONFIG.MIN_SPEED && newSpeed <= CONFIG.MAX_SPEED) {
-        currentSpeed = newSpeed;
-        updateSpeed(); // обновляет speedValue и состояние кнопок
-        updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
-      }
+      // Вычисляем количество шагов от минимальной скорости
+      const stepsTotal = Math.round((CONFIG.MAX_SPEED - CONFIG.MIN_SPEED) / CONFIG.SPEED_STEP);
+      let steps = Math.round((currentSpeed - CONFIG.MIN_SPEED) / CONFIG.SPEED_STEP);
+      steps += delta;
+      steps = Math.max(0, Math.min(stepsTotal, steps));
+      // Точное значение
+      const newSpeed = CONFIG.MIN_SPEED + steps * CONFIG.SPEED_STEP;
+      // Округляем до двух знаков, чтобы убрать ошибки
+      currentSpeed = Math.round(newSpeed * 100) / 100;
+      updateSpeed(); // обновляет speedValue и состояние кнопок
+      updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
     }
 
     function adjustFontSize(delta) {
@@ -1398,6 +1431,12 @@
 
     function loadVoicesForModal() {
       voices = synth.getVoices();
+
+      // Валидация сохранённого индекса голоса
+      if (selectedVoiceIndex !== null && (selectedVoiceIndex < 0 || selectedVoiceIndex >= voices.length || !voices[selectedVoiceIndex])) {
+        selectedVoiceIndex = null;
+      }
+
       voiceSelect.innerHTML = '';
 
       const lowerName = v => v.name.toLowerCase();
@@ -1481,7 +1520,9 @@
       saveAllSettings();
     });
 
-    synth.addEventListener('voiceschanged', loadVoicesForModal);
+    if (synth) {
+      synth.addEventListener('voiceschanged', loadVoicesForModal);
+    }
 
     menuToggleBtn.addEventListener('click', showStartScreen);
 
@@ -1576,6 +1617,7 @@
       document.getElementById('cancelSettingsBtn').addEventListener('click', hideSettings);
       
       volumeSlider.addEventListener('input', (e) => {
+        // При ручном изменении слайдера устанавливаем точное значение
         currentVolume = parseFloat(e.target.value);
         volumeValue.textContent = Math.round(currentVolume * 100) + '%';
         updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
