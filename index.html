@@ -939,11 +939,19 @@
       openModal('voiceModal');
     }
 
+    // ========== ИСПРАВЛЕННЫЕ ФУНКЦИИ ОТКРЫТИЯ ФАЙЛА И СЛОВАРЯ ==========
     function openFile() {
-      setTimeout(() => {
-        document.getElementById('fileInput').click();
-      }, 100);
+      const fileInput = document.getElementById('fileInput');
+      fileInput.value = '';  // очищаем предыдущее значение
+      setTimeout(() => fileInput.click(), 100);
     }
+
+    function loadDictionary() {
+      const dictInput = document.getElementById('dictInput');
+      dictInput.value = '';  // очищаем
+      setTimeout(() => dictInput.click(), 100);
+    }
+    // =====================================================================
 
     function startTextInput() {
       startScreen.classList.add('hidden');
@@ -956,8 +964,6 @@
       updateStatus('Режим ввода текста. Введите или вставьте текст.');
       setTimeout(() => textInput.focus(), 100);
     }
-
-    function loadDictionary() { document.getElementById('dictInput').click(); }
 
     function closeApp() {
       if (confirm('Закрыть приложение?')) window.close();
