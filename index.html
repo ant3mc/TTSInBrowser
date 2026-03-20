@@ -284,6 +284,7 @@
         <li><strong>Alt+F / Alt+А</strong>: Скрыть/показать панель управления (имитация полноэкранного режима)</li>
         <li><strong>Tab</strong> и <strong>Shift+Tab</strong>: Навигация по элементам</li>
         <li><strong>Escape</strong>: Закрыть модальное окно, вернуться в меню или (в режиме ввода текста) переключиться в режим озвучки</li>
+        <li><strong>, / . (б/ю)</strong>: Навигация внутри текущего фрагмента (субфрагменты)</li>
       </ul>
       <p><strong>Важно для мобильных устройств:</strong></p>
       <ul>
@@ -473,6 +474,12 @@
     let minFragmentLength = CONFIG.DEFAULT_MIN_FRAGMENT_LENGTH;
     let mainFragmentLength = CONFIG.DEFAULT_MAIN_FRAGMENT_LENGTH;
     let statusClearTimeout = null;
+
+    // ==================== НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ СУБФРАГМЕНТОВ ====================
+    let subFragments = null;          // массив субфрагментов текущего основного фрагмента
+    let currentSubIndex = 0;           // индекс текущего субфрагмента
+    let lastMainIndexForSub = -1;      // индекс основного фрагмента, для которого вычислены subFragments
+    // ============================================================================
 
     // ==================== ПРОВЕРКА ПОДДЕРЖКИ SPEECH SYNTHESIS ====================
     if (!window.speechSynthesis) {
@@ -771,6 +778,9 @@
           } else {
             rawText = text;
             fragments = splitIntoFragments(rawText);
+            // Сброс субфрагментов
+            subFragments = null;
+            lastMainIndexForSub = -1;
             currentFragmentIndex = 0;
             textInput.classList.add('hidden');
             textContent.classList.remove('hidden');
@@ -810,6 +820,31 @@
           return;
         }
       }
+
+      // ========== НАВИГАЦИЯ ПО СУБФРАГМЕНТАМ ==========
+      if (!event.altKey && !event.ctrlKey && !event.metaKey) {
+        const key = event.key.toLowerCase();
+        if (key === ',' || key === '.' || key === 'б' || key === 'ю') {
+          // Игнорируем, если фокус в поле ввода (уже проверено выше для textarea/input, но оставим для надёжности)
+          if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') return;
+          event.preventDefault();
+          if (fragments.length === 0) return;
+          ensureSubFragments();
+          if (!subFragments || subFragments.length === 0) return; // нет субфрагментов
+          const prev = currentSubIndex;
+          if (key === ',' || key === 'б') {
+            currentSubIndex = Math.max(0, currentSubIndex - 1);
+          } else {
+            currentSubIndex = Math.min(subFragments.length - 1, currentSubIndex + 1);
+          }
+          if (prev !== currentSubIndex && isPlaying) {
+            synth.cancel();
+            speakCurrent();
+          }
+          return;
+        }
+      }
+      // ================================================
       
       if (event.altKey) {
         const key = event.key.toLowerCase();
@@ -961,6 +996,9 @@
       currentMode = 'text';
       rawText = '';
       fragments = [];
+      // Сброс субфрагментов
+      subFragments = null;
+      lastMainIndexForSub = -1;
       updateStatus('Режим ввода текста. Введите или вставьте текст.');
       setTimeout(() => textInput.focus(), 100);
     }
@@ -1256,6 +1294,9 @@
           fragments = splitIntoFragments(rawText);
           const savedPosition = loadPositionForFile(file.name);
           currentFragmentIndex = savedPosition;
+          // Сброс субфрагментов
+          subFragments = null;
+          lastMainIndexForSub = -1;
           startScreen.classList.add('hidden');
           mainInterface.classList.remove('hidden');
           textContent.classList.remove('hidden');
@@ -1307,13 +1348,49 @@
       return index;
     }
 
-    function speakCurrentFragment() {
+    // ==================== ИЗМЕНЁННАЯ ФУНКЦИЯ РАЗБИЕНИЯ НА СУБФРАГМЕНТЫ ====================
+    function splitIntoSubFragments(text) {
+      if (!text) return [];
+      // Разделяем после каждого из символов . ; : \n \r, сохраняя разделитель в предыдущей части
+      let parts = text.split(/(?<=[.;:\n\r])/);
+      // Очищаем каждый субфрагмент от начальных и конечных пробельных символов
+      parts = parts.map(part => part.trim()).filter(part => part !== '');
+      return parts;
+    }
+    // ================================================================================
+
+    // ==================== ФУНКЦИЯ ДЛЯ ЛЕНИВОГО ВЫЧИСЛЕНИЯ СУБФРАГМЕНТОВ ====================
+    function ensureSubFragments() {
+      if (fragments.length === 0) return false;
+      if (lastMainIndexForSub !== currentFragmentIndex || subFragments === null) {
+        const raw = fragments[currentFragmentIndex];
+        const cleaned = splitIntoSubFragments(raw);
+        if (cleaned.length === 0) {
+          subFragments = null;
+        } else {
+          subFragments = cleaned;
+        }
+        lastMainIndexForSub = currentFragmentIndex;
+        currentSubIndex = 0;
+      }
+      return subFragments !== null;
+    }
+    // =======================================================================================
+
+    // ==================== МОДИФИЦИРОВАННАЯ ФУНКЦИЯ ВОСПРОИЗВЕДЕНИЯ ====================
+    function speakCurrent() {
       if (synth.speaking) synth.cancel();
       if (currentFragmentIndex >= fragments.length) {
         finalizePlayback('Текст закончился');
         return;
       }
-      let textToSpeak = fragments[currentFragmentIndex];
+      let textToSpeak;
+      // Определяем, используем ли субфрагменты
+      if (subFragments && subFragments.length > 0 && lastMainIndexForSub === currentFragmentIndex) {
+        textToSpeak = subFragments[currentSubIndex];
+      } else {
+        textToSpeak = fragments[currentFragmentIndex];
+      }
       if (replacementDict.size > 0) textToSpeak = applyReplacements(textToSpeak);
       try {
         const voiceIndex = getValidatedVoiceIndex();
@@ -1324,9 +1401,26 @@
         currentUtterance.volume = currentVolume;
         currentUtterance.onstart = () => { updateTextDisplay(); };
         currentUtterance.onend = () => {
-          currentFragmentIndex++;
+          // Если есть субфрагменты и мы в них
+          if (subFragments && subFragments.length > 0 && lastMainIndexForSub === currentFragmentIndex) {
+            if (currentSubIndex + 1 < subFragments.length) {
+              // Переход к следующему субфрагменту внутри текущего основного
+              currentSubIndex++;
+              setTimeout(speakCurrent, 100);
+              return;
+            } else {
+              // Субфрагменты текущего основного закончились
+              subFragments = null;
+              lastMainIndexForSub = -1;
+              // Переходим к следующему основному фрагменту
+              currentFragmentIndex++;
+            }
+          } else {
+            // Нет субфрагментов – просто следующий основной
+            currentFragmentIndex++;
+          }
           if (currentFragmentIndex < fragments.length && isPlaying) {
-            setTimeout(speakCurrentFragment, 100);
+            setTimeout(speakCurrent, 100);
           } else {
             finalizePlayback('Озвучка завершена');
           }
@@ -1340,6 +1434,7 @@
         finalizePlayback(error.message, true);
       }
     }
+    // =================================================================================
 
     function finalizePlayback(msg, isError = false) {
       isPlaying = false;
@@ -1386,6 +1481,9 @@
 
     prevFragmentBtn.addEventListener('click', () => {
       currentFragmentIndex = Math.max(0, currentFragmentIndex - 1);
+      // Сброс субфрагментов при смене основного фрагмента
+      subFragments = null;
+      lastMainIndexForSub = -1;
       updateTextDisplay();
       updateStatus(`Фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`);
       if (isPlaying) safeCancelAndSpeak();
@@ -1393,6 +1491,9 @@
 
     nextFragmentBtn.addEventListener('click', () => {
       currentFragmentIndex = Math.min(fragments.length - 1, currentFragmentIndex + 1);
+      // Сброс субфрагментов при смене основного фрагмента
+      subFragments = null;
+      lastMainIndexForSub = -1;
       updateTextDisplay();
       updateStatus(`Фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`);
       if (isPlaying) safeCancelAndSpeak();
@@ -1401,7 +1502,7 @@
     function safeCancelAndSpeak() {
       if (isPlaying) {
         synth.cancel();
-        speakCurrentFragment();
+        speakCurrent();
       }
     }
 
@@ -1418,6 +1519,9 @@
         if (currentMode === 'text') {
           rawText = textInput.value.trim();
           fragments = splitIntoFragments(rawText);
+          // Сброс субфрагментов при новом тексте
+          subFragments = null;
+          lastMainIndexForSub = -1;
         }
         if (fragments.length === 0) {
           updateStatus('Нет текста для чтения', 'error');
@@ -1431,7 +1535,7 @@
           textContent.classList.remove('hidden');
           updateTextDisplay();
         }
-        speakCurrentFragment();
+        speakCurrent();
       }
     });
 
@@ -1574,6 +1678,9 @@
         const newIndex = adjustedNumber - 1;
         if (newIndex !== currentFragmentIndex) {
           currentFragmentIndex = newIndex;
+          // Сброс субфрагментов при ручном изменении номера фрагмента
+          subFragments = null;
+          lastMainIndexForSub = -1;
           updateTextDisplay();
           updateStatus(`Позиция изменена на фрагмент ${currentFragmentIndex + 1}`, 'info');
           if (isPlaying) {
