@@ -1745,7 +1745,8 @@
       updateStatus('');
 
       document.addEventListener('keydown', function(e) {
-        if (e.key !== 'Tab') return;
+        // ИСПРАВЛЕНИЕ: не перехватываем Tab, если нажаты Ctrl, Alt или Meta (Cmd)
+        if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return;
 
         const controlRow = document.querySelector('.control-row');
         const status = document.getElementById('status');
