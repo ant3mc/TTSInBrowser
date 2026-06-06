@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
   <title>TTS для браузера</title>
   <style>
-    /* все стили без изменений */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; height: 100vh; overflow: hidden; background: #fafafa; color: #333; }
     html:-webkit-full-screen, html:fullscreen { overflow: hidden; }
@@ -60,7 +59,7 @@
     .menu-toggle { margin-left: auto; padding: 8px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; outline: none; }
     .menu-toggle:hover { background: #45a049; }
     .text-container { flex: 1; overflow: auto; padding: 10px; background: #fafafa; }
-    #textContent { line-height: 1.6; color: #333; max-width: 100%; white-space: pre-wrap; word-wrap: break-word; min-height: 100%; }
+    #textContent { line-height: 1.6; color: #333; max-width: 100%; white-space: pre-wrap; word-wrap: break-word; min-height: 100%; touch-action: manipulation; }
     #textInput { width: 100%; height: 100%; border: none; outline: none; line-height: 1.6; padding: 20px; background: #fafafa; resize: none; font-family: Arial, sans-serif; color: #333; }
     .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1001; max-width: none; width: 90%; }
     .modal h2 { margin-bottom: 20px; text-align: center; }
@@ -86,21 +85,7 @@
       .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
     }
 
-    html[data-theme="dark"] body,
-    html[data-theme="dark"] #textInput,
-    html[data-theme="dark"] .text-container { background: #1e1e1e; color: #e0e0e0; }
-    html[data-theme="dark"] #startScreen,
-    html[data-theme="dark"] .modal,
-    html[data-theme="dark"] .control-row { background: #2a2a2a; }
-    html[data-theme="dark"] .start-title { color: #f0f0f0; }
-    html[data-theme="dark"] .menu-item { background: #2a2a2a; color: #e0e0e0; border-color: #4CAF50; }
-    html[data-theme="dark"] .speed-control,
-    html[data-theme="dark"] .font-size-control { background: #1e1e1e; border-color: #444; }
-    html[data-theme="dark"] .control-btn { background: #2a2a2a; color: #e0e0e0; border-color: #444; }
-    html[data-theme="dark"] .status.error { background: #3e2723; color: #ff8a80; }
-    html[data-theme="dark"] .status.warning { background: #3e2f0b; color: #ffb74d; }
-    html[data-theme="dark"] .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
-
+    /* СВЕТЛАЯ ТЕМА */
     html[data-theme="light"] body,
     html[data-theme="light"] #textInput,
     html[data-theme="light"] .text-container { background: #fafafa; color: #333; }
@@ -115,7 +100,6 @@
     html[data-theme="light"] .status.error { background: #ffebee; color: #d32f2f; }
     html[data-theme="light"] .status.warning { background: #fff3e0; color: #e65100; }
     html[data-theme="light"] .status:not(.error):not(.warning) { background: #e8f5e8; color: #333; }
-
     html[data-theme="light"] .current-fragment {
       background: #333 !important;
       color: white !important;
@@ -123,6 +107,22 @@
       padding: 2px 4px;
       border-radius: 3px;
     }
+
+    /* ТЁМНАЯ ТЕМА №1 (ОРИГИНАЛЬНАЯ) — яркий жёлтый */
+    html[data-theme="dark"] body,
+    html[data-theme="dark"] #textInput,
+    html[data-theme="dark"] .text-container { background: #1e1e1e; color: #e0e0e0; }
+    html[data-theme="dark"] #startScreen,
+    html[data-theme="dark"] .modal,
+    html[data-theme="dark"] .control-row { background: #2a2a2a; }
+    html[data-theme="dark"] .start-title { color: #f0f0f0; }
+    html[data-theme="dark"] .menu-item { background: #2a2a2a; color: #e0e0e0; border-color: #4CAF50; }
+    html[data-theme="dark"] .speed-control,
+    html[data-theme="dark"] .font-size-control { background: #1e1e1e; border-color: #444; }
+    html[data-theme="dark"] .control-btn { background: #2a2a2a; color: #e0e0e0; border-color: #444; }
+    html[data-theme="dark"] .status.error { background: #3e2723; color: #ff8a80; }
+    html[data-theme="dark"] .status.warning { background: #3e2f0b; color: #ffb74d; }
+    html[data-theme="dark"] .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
     html[data-theme="dark"] .current-fragment {
       background: #FFD700 !important;
       color: #000 !important;
@@ -131,6 +131,32 @@
       border-radius: 3px;
       font-weight: bold;
     }
+
+    /* ТЁМНАЯ ТЕМА №2 — очень тёмный (почти чёрный) фон с жёлтым оттенком */
+    html[data-theme="dark2"] body,
+    html[data-theme="dark2"] #textInput,
+    html[data-theme="dark2"] .text-container { background: #1e1e1e; color: #e0e0e0; }
+    html[data-theme="dark2"] #startScreen,
+    html[data-theme="dark2"] .modal,
+    html[data-theme="dark2"] .control-row { background: #2a2a2a; }
+    html[data-theme="dark2"] .start-title { color: #f0f0f0; }
+    html[data-theme="dark2"] .menu-item { background: #2a2a2a; color: #e0e0e0; border-color: #4CAF50; }
+    html[data-theme="dark2"] .speed-control,
+    html[data-theme="dark2"] .font-size-control { background: #1e1e1e; border-color: #444; }
+    html[data-theme="dark2"] .control-btn { background: #2a2a2a; color: #e0e0e0; border-color: #444; }
+    html[data-theme="dark2"] .status.error { background: #3e2723; color: #ff8a80; }
+    html[data-theme="dark2"] .status.warning { background: #3e2f0b; color: #ffb74d; }
+    html[data-theme="dark2"] .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
+    html[data-theme="dark2"] .current-fragment {
+      background: #2E2A00 !important;
+      color: #FFF2CC !important;
+      forced-color-adjust: none !important;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-weight: bold;
+    }
+
+    /* Тема auto использует системные настройки */
     html[data-theme="auto"] .current-fragment {
       background: Highlight !important;
       color: HighlightText !important;
@@ -168,10 +194,8 @@
   </style>
 </head>
 <body>
-  <!-- разметка без изменений, добавлен блок сообщения -->
   <div id="startScreen">
     <h1 class="start-title">TTS для браузера</h1>
-    <!-- Блок сообщения о неподдерживаемом браузере (скрыт по умолчанию) -->
     <div id="noTTSMessage" class="hidden">⚠️ Ваш браузер не поддерживает синтез речи. Функции озвучки будут недоступны.</div>
     <div class="start-menu">
       <button id="resumeText" class="menu-item hidden">Вернуться к тексту</button>
@@ -200,7 +224,9 @@
       </div>
       <div class="playback-control">
         <button class="control-btn" id="prevFragment" title="Предыдущий фрагмент" tabindex="0" aria-label="Предыдущий фрагмент">⏪</button>
+        <button class="control-btn" id="prevSubFragment" title="Предыдущий субфрагмент" tabindex="0" aria-label="Перемещение на один субфрагмент назад">◄</button>
         <button class="control-btn play-btn" id="playPause" title="Пуск/Пауза" tabindex="0" aria-label="Воспроизведение/Пауза">▶</button>
+        <button class="control-btn" id="nextSubFragment" title="Следующий субфрагмент" tabindex="0" aria-label="Перемещение на один субфрагмент вперед">►</button>
         <button class="control-btn" id="nextFragment" title="Следующий фрагмент" tabindex="0" aria-label="Следующий фрагмент">⏩</button>
       </div>
       <button class="menu-toggle" id="menuToggle" title="Вернуться в меню" tabindex="0" aria-label="Открыть главное меню">☰</button>
@@ -242,7 +268,8 @@
         <select id="themeSelect" style="width: 100%; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px;">
           <option value="auto">Системная (по умолчанию)</option>
           <option value="light">Светлая</option>
-          <option value="dark">Тёмная</option>
+          <option value="dark">Тёмная (жёлтая подсветка)</option>
+          <option value="dark2">Тёмная тема 2 (очень тёмный фон)</option>
         </select>
       </label>
     </div>
@@ -439,9 +466,9 @@
     }
     // ==================== КОНЕЦ СОХРАНЕНИЯ ПОЗИЦИИ ====================
 
-    // ========== ИЗМЕНЁННЫЙ ДИАПАЗОН СКОРОСТИ ==========
+    // ========== ИЗМЕНЁННЫЙ ДИАПАЗОН СКОРОСТИ (МИНИМУМ 0.05) ==========
     const CONFIG = {
-      MIN_SPEED: 0.1,
+      MIN_SPEED: 0.05,
       MAX_SPEED: 2.0,
       SPEED_STEP: 0.05,
       MIN_VOLUME: 0.3,
@@ -452,7 +479,8 @@
       FONT_STEP: 8,
       DEFAULT_MIN_FRAGMENT_LENGTH: 70,
       DEFAULT_MAIN_FRAGMENT_LENGTH: 200,
-      STATUS_TIMEOUT: 5000
+      STATUS_TIMEOUT: 5000,
+      DOUBLE_TAP_DELAY: 400
     };
     // ==================================================
 
@@ -476,15 +504,15 @@
     let statusClearTimeout = null;
 
     // ==================== НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ СУБФРАГМЕНТОВ ====================
-    let subFragments = null;          // массив субфрагментов текущего основного фрагмента
-    let currentSubIndex = 0;           // индекс текущего субфрагмента
-    let lastMainIndexForSub = -1;      // индекс основного фрагмента, для которого вычислены subFragments
-    // ============================================================================
+    let subFragments = null;
+    let currentSubIndex = 0;
+    let lastMainIndexForSub = -1;
+    // ==================== ПЕРЕМЕННАЯ ДЛЯ ДВОЙНОГО ТАПА ====================
+    let singleTapTimer = null;
 
     // ==================== ПРОВЕРКА ПОДДЕРЖКИ SPEECH SYNTHESIS ====================
     if (!window.speechSynthesis) {
       document.getElementById('noTTSMessage').classList.remove('hidden');
-      // По условию достаточно только показать сообщение, блокировка не требуется
     }
     // =============================================================================
 
@@ -530,6 +558,8 @@
     const playPauseBtn = document.getElementById('playPause');
     const prevFragmentBtn = document.getElementById('prevFragment');
     const nextFragmentBtn = document.getElementById('nextFragment');
+    const prevSubFragmentBtn = document.getElementById('prevSubFragment');
+    const nextSubFragmentBtn = document.getElementById('nextSubFragment');
     const speedDownBtn = document.getElementById('speedDown');
     const speedUpBtn = document.getElementById('speedUp');
     const speedValue = document.getElementById('speedValue');
@@ -556,6 +586,8 @@
       document.getElementById('playPause').setAttribute('aria-label', 'Воспроизведение/Пауза');
       document.getElementById('prevFragment').setAttribute('aria-label', 'Предыдущий фрагмент');
       document.getElementById('nextFragment').setAttribute('aria-label', 'Следующий фрагмент');
+      document.getElementById('prevSubFragment').setAttribute('aria-label', 'Перемещение на один субфрагмент назад');
+      document.getElementById('nextSubFragment').setAttribute('aria-label', 'Перемещение на один субфрагмент вперед');
       document.getElementById('menuToggle').setAttribute('aria-label', 'Открыть главное меню');
       statusContainer.setAttribute('aria-live', 'polite');
       document.querySelectorAll('.modal').forEach(setupModalAccessibility);
@@ -621,16 +653,13 @@
       document.getElementById('fontValue').textContent = size;
     }
 
-    // ========== ИСПРАВЛЕННЫЕ ФУНКЦИИ УПРАВЛЕНИЯ ПАРАМЕТРАМИ ==========
     function adjustVolume(delta) {
-      // Используем целочисленный подход для точности
       const minH = CONFIG.MIN_VOLUME * 10;
       const maxH = CONFIG.MAX_VOLUME * 10;
       const stepH = CONFIG.VOLUME_STEP * 10;
       let currentH = Math.round(currentVolume * 10);
       let newH = currentH + delta * stepH;
       newH = Math.max(minH, Math.min(maxH, newH));
-      // Округляем до ближайшего шага (шаг 1 в десятых долях)
       newH = Math.round(newH / stepH) * stepH;
       currentVolume = newH / 10;
       volumeSlider.value = currentVolume;
@@ -639,16 +668,13 @@
     }
 
     function adjustSpeed(delta) {
-      // Вычисляем количество шагов от минимальной скорости
       const stepsTotal = Math.round((CONFIG.MAX_SPEED - CONFIG.MIN_SPEED) / CONFIG.SPEED_STEP);
       let steps = Math.round((currentSpeed - CONFIG.MIN_SPEED) / CONFIG.SPEED_STEP);
       steps += delta;
       steps = Math.max(0, Math.min(stepsTotal, steps));
-      // Точное значение
       const newSpeed = CONFIG.MIN_SPEED + steps * CONFIG.SPEED_STEP;
-      // Округляем до двух знаков, чтобы убрать ошибки
       currentSpeed = Math.round(newSpeed * 100) / 100;
-      updateSpeed(); // обновляет speedValue и состояние кнопок
+      updateSpeed();
       updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
     }
 
@@ -656,13 +682,11 @@
       const newSize = currentFontSize + delta * CONFIG.FONT_STEP;
       if (newSize >= CONFIG.MIN_FONT_SIZE && newSize <= CONFIG.MAX_FONT_SIZE) {
         currentFontSize = newSize;
-        updateTextFontSize(); // обновляет стили и отображение fontValue
+        updateTextFontSize();
         updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
       }
     }
-    // ===============================================================
 
-    // ========== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК ESCAPE ==========
     function toggleFullscreen() {
       const controls = document.querySelector('.control-row');
       const status = document.getElementById('status');
@@ -682,7 +706,6 @@
         removeFocusClasses();
       }
     }
-    // ====================================================
 
     document.getElementById('fontSmaller').addEventListener('click', () => {
       adjustFontSize(-1);
@@ -701,7 +724,6 @@
       }
     }
 
-    // ==================== ИСПРАВЛЕННАЯ ФУНКЦИЯ ИЗВЛЕЧЕНИЯ ТЕКСТА ИЗ HTML ====================
     function extractTextFromHtml(html) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
@@ -766,7 +788,22 @@
       result = result.replace(/\n{3,}/g, '\n').trim();
       return result;
     }
-    // ==================== КОНЕЦ ИСПРАВЛЕННОЙ ФУНКЦИИ ====================
+
+    function navigateSubFragment(direction) {
+      if (fragments.length === 0) return;
+      ensureSubFragments();
+      if (!subFragments || subFragments.length === 0) return;
+      const prev = currentSubIndex;
+      if (direction === 'prev') {
+        currentSubIndex = Math.max(0, currentSubIndex - 1);
+      } else {
+        currentSubIndex = Math.min(subFragments.length - 1, currentSubIndex + 1);
+      }
+      if (prev !== currentSubIndex && isPlaying) {
+        synth.cancel();
+        speakCurrent();
+      }
+    }
 
     document.addEventListener('keydown', function(event) {
       if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') {
@@ -778,7 +815,6 @@
           } else {
             rawText = text;
             fragments = splitIntoFragments(rawText);
-            // Сброс субфрагментов
             subFragments = null;
             lastMainIndexForSub = -1;
             currentFragmentIndex = 0;
@@ -811,7 +847,6 @@
         hideSettings();
         return;
       }
-      // Используем toggleFullscreen вместо дублирования кода
       if (event.key === 'Escape') {
         const controls = document.querySelector('.control-row');
         if (controls.classList.contains('hidden') && !mainInterface.classList.contains('hidden')) {
@@ -821,30 +856,15 @@
         }
       }
 
-      // ========== НАВИГАЦИЯ ПО СУБФРАГМЕНТАМ ==========
       if (!event.altKey && !event.ctrlKey && !event.metaKey) {
         const key = event.key.toLowerCase();
         if (key === ',' || key === '.' || key === 'б' || key === 'ю') {
-          // Игнорируем, если фокус в поле ввода (уже проверено выше для textarea/input, но оставим для надёжности)
           if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') return;
           event.preventDefault();
-          if (fragments.length === 0) return;
-          ensureSubFragments();
-          if (!subFragments || subFragments.length === 0) return; // нет субфрагментов
-          const prev = currentSubIndex;
-          if (key === ',' || key === 'б') {
-            currentSubIndex = Math.max(0, currentSubIndex - 1);
-          } else {
-            currentSubIndex = Math.min(subFragments.length - 1, currentSubIndex + 1);
-          }
-          if (prev !== currentSubIndex && isPlaying) {
-            synth.cancel();
-            speakCurrent();
-          }
+          navigateSubFragment((key === ',' || key === 'б') ? 'prev' : 'next');
           return;
         }
       }
-      // ================================================
       
       if (event.altKey) {
         const key = event.key.toLowerCase();
@@ -955,6 +975,60 @@
       }
     });
 
+    // ==================== НОВЫЙ ОБРАБОТЧИК ДВОЙНОГО ТАПА ПО ЦЕНТРУ ЭКРАНА ====================
+    // Работает всегда, когда текст отображается (даже на паузе или до начала воспроизведения)
+    function isTapInCenter(clientX, clientY) {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const leftThird = width / 3;
+      const rightThird = 2 * width / 3;
+      const topThird = height / 3;
+      const bottomThird = 2 * height / 3;
+      return (clientX >= leftThird && clientX <= rightThird && clientY >= topThird && clientY <= bottomThird);
+    }
+
+    function handleCenterTap(event) {
+      // Реагируем только если блок с текстом виден (режим отображения текста, а не ввода)
+      if (textContent.classList.contains('hidden')) return;
+      // Проверка координат
+      if (!isTapInCenter(event.clientX, event.clientY)) return;
+
+      // Предотвращаем случайный зум
+      event.preventDefault();
+
+      // Различаем одиночный и двойной тап
+      if (event.detail === 2) {
+        // Двойной тап — отменяем ожидание одиночного и вызываем полноэкранный режим
+        if (singleTapTimer) {
+          clearTimeout(singleTapTimer);
+          singleTapTimer = null;
+        }
+        toggleFullscreen();
+      } else if (event.detail === 1) {
+        // Одиночный тап — ждём, не будет ли второго
+        if (singleTapTimer) {
+          // Если таймер уже есть, значит это второй клик для двойного? нет, detail=1 при первом и втором по отдельности.
+          // На самом деле событие click с detail=1 приходит дважды при двойном тапе (первый и второй клик).
+          // Поэтому мы должны сбросить предыдущий таймер и не вызывать паузу сейчас.
+          clearTimeout(singleTapTimer);
+          singleTapTimer = null;
+          // Не вызываем паузу — двойной тап уже обработан выше (detail=2 придёт после двух detail=1)
+          return;
+        }
+        // Запускаем таймер на выполнение паузы/пуска через задержку
+        singleTapTimer = setTimeout(() => {
+          playPauseBtn.click();
+          singleTapTimer = null;
+        }, CONFIG.DOUBLE_TAP_DELAY);
+      }
+    }
+
+    // Добавляем обработчик на элемент textContent (он же #textContent)
+    if (textContent) {
+      textContent.addEventListener('click', handleCenterTap);
+    }
+    // ================================================================================
+
     function showInfo() {
       openModal('infoModal');
     }
@@ -974,19 +1048,17 @@
       openModal('voiceModal');
     }
 
-    // ========== ИСПРАВЛЕННЫЕ ФУНКЦИИ ОТКРЫТИЯ ФАЙЛА И СЛОВАРЯ ==========
     function openFile() {
       const fileInput = document.getElementById('fileInput');
-      fileInput.value = '';  // очищаем предыдущее значение
+      fileInput.value = '';
       setTimeout(() => fileInput.click(), 100);
     }
 
     function loadDictionary() {
       const dictInput = document.getElementById('dictInput');
-      dictInput.value = '';  // очищаем
+      dictInput.value = '';
       setTimeout(() => dictInput.click(), 100);
     }
-    // =====================================================================
 
     function startTextInput() {
       startScreen.classList.add('hidden');
@@ -996,7 +1068,6 @@
       currentMode = 'text';
       rawText = '';
       fragments = [];
-      // Сброс субфрагментов
       subFragments = null;
       lastMainIndexForSub = -1;
       updateStatus('Режим ввода текста. Введите или вставьте текст.');
@@ -1294,7 +1365,6 @@
           fragments = splitIntoFragments(rawText);
           const savedPosition = loadPositionForFile(file.name);
           currentFragmentIndex = savedPosition;
-          // Сброс субфрагментов
           subFragments = null;
           lastMainIndexForSub = -1;
           startScreen.classList.add('hidden');
@@ -1348,19 +1418,13 @@
       return index;
     }
 
-    // ==================== ИЗМЕНЁННАЯ ФУНКЦИЯ РАЗБИЕНИЯ НА СУБФРАГМЕНТЫ ====================
-    // Теперь разделители: . ; : ? ! \n \r \t \v
     function splitIntoSubFragments(text) {
       if (!text) return [];
-      // Разделяем после каждого из указанных символов, сохраняя разделитель в предыдущей части
       let parts = text.split(/(?<=[.;:?!\n\r\t\v])/);
-      // Очищаем каждый субфрагмент от начальных и конечных пробельных символов
       parts = parts.map(part => part.trim()).filter(part => part !== '');
       return parts;
     }
-    // ================================================================================
 
-    // ==================== ФУНКЦИЯ ДЛЯ ЛЕНИВОГО ВЫЧИСЛЕНИЯ СУБФРАГМЕНТОВ ====================
     function ensureSubFragments() {
       if (fragments.length === 0) return false;
       if (lastMainIndexForSub !== currentFragmentIndex || subFragments === null) {
@@ -1376,9 +1440,7 @@
       }
       return subFragments !== null;
     }
-    // =======================================================================================
 
-    // ==================== МОДИФИЦИРОВАННАЯ ФУНКЦИЯ ВОСПРОИЗВЕДЕНИЯ ====================
     function speakCurrent() {
       if (synth.speaking) synth.cancel();
       if (currentFragmentIndex >= fragments.length) {
@@ -1386,7 +1448,6 @@
         return;
       }
       let textToSpeak;
-      // Определяем, используем ли субфрагменты
       if (subFragments && subFragments.length > 0 && lastMainIndexForSub === currentFragmentIndex) {
         textToSpeak = subFragments[currentSubIndex];
       } else {
@@ -1402,22 +1463,17 @@
         currentUtterance.volume = currentVolume;
         currentUtterance.onstart = () => { updateTextDisplay(); };
         currentUtterance.onend = () => {
-          // Если есть субфрагменты и мы в них
           if (subFragments && subFragments.length > 0 && lastMainIndexForSub === currentFragmentIndex) {
             if (currentSubIndex + 1 < subFragments.length) {
-              // Переход к следующему субфрагменту внутри текущего основного
               currentSubIndex++;
               setTimeout(speakCurrent, 100);
               return;
             } else {
-              // Субфрагменты текущего основного закончились
               subFragments = null;
               lastMainIndexForSub = -1;
-              // Переходим к следующему основному фрагменту
               currentFragmentIndex++;
             }
           } else {
-            // Нет субфрагментов – просто следующий основной
             currentFragmentIndex++;
           }
           if (currentFragmentIndex < fragments.length && isPlaying) {
@@ -1435,7 +1491,6 @@
         finalizePlayback(error.message, true);
       }
     }
-    // =================================================================================
 
     function finalizePlayback(msg, isError = false) {
       isPlaying = false;
@@ -1482,7 +1537,6 @@
 
     prevFragmentBtn.addEventListener('click', () => {
       currentFragmentIndex = Math.max(0, currentFragmentIndex - 1);
-      // Сброс субфрагментов при смене основного фрагмента
       subFragments = null;
       lastMainIndexForSub = -1;
       updateTextDisplay();
@@ -1492,12 +1546,19 @@
 
     nextFragmentBtn.addEventListener('click', () => {
       currentFragmentIndex = Math.min(fragments.length - 1, currentFragmentIndex + 1);
-      // Сброс субфрагментов при смене основного фрагмента
       subFragments = null;
       lastMainIndexForSub = -1;
       updateTextDisplay();
       updateStatus(`Фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`);
       if (isPlaying) safeCancelAndSpeak();
+    });
+
+    prevSubFragmentBtn.addEventListener('click', () => {
+      navigateSubFragment('prev');
+    });
+
+    nextSubFragmentBtn.addEventListener('click', () => {
+      navigateSubFragment('next');
     });
 
     function safeCancelAndSpeak() {
@@ -1520,7 +1581,6 @@
         if (currentMode === 'text') {
           rawText = textInput.value.trim();
           fragments = splitIntoFragments(rawText);
-          // Сброс субфрагментов при новом тексте
           subFragments = null;
           lastMainIndexForSub = -1;
         }
@@ -1543,7 +1603,6 @@
     function loadVoicesForModal() {
       voices = synth.getVoices();
 
-      // Валидация сохранённого индекса голоса
       if (selectedVoiceIndex !== null && (selectedVoiceIndex < 0 || selectedVoiceIndex >= voices.length || !voices[selectedVoiceIndex])) {
         selectedVoiceIndex = null;
       }
@@ -1679,7 +1738,6 @@
         const newIndex = adjustedNumber - 1;
         if (newIndex !== currentFragmentIndex) {
           currentFragmentIndex = newIndex;
-          // Сброс субфрагментов при ручном изменении номера фрагмента
           subFragments = null;
           lastMainIndexForSub = -1;
           updateTextDisplay();
@@ -1731,7 +1789,6 @@
       document.getElementById('cancelSettingsBtn').addEventListener('click', hideSettings);
       
       volumeSlider.addEventListener('input', (e) => {
-        // При ручном изменении слайдера устанавливаем точное значение
         currentVolume = parseFloat(e.target.value);
         volumeValue.textContent = Math.round(currentVolume * 100) + '%';
         updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
@@ -1745,7 +1802,6 @@
       updateStatus('');
 
       document.addEventListener('keydown', function(e) {
-        // ИСПРАВЛЕНИЕ: не перехватываем Tab, если нажаты Ctrl, Alt или Meta (Cmd)
         if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return;
 
         const controlRow = document.querySelector('.control-row');
