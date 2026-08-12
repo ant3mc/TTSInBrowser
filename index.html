@@ -380,7 +380,7 @@
 
     function saveAllSettings() {
       const settings = {
-        voice: selectedVoiceIndex,
+        voiceURI: selectedVoiceURI,   // сохраняем URI вместо индекса
         fragment: minFragmentLength,
         mainFragment: mainFragmentLength,
         theme: themeSelect.value
@@ -391,7 +391,9 @@
 
     function loadAllSettings() {
       const s = Storage.get('settings', {});
-      if (s.voice !== undefined) selectedVoiceIndex = s.voice;
+      if (s.voiceURI !== undefined) {
+        selectedVoiceURI = s.voiceURI;
+      }
       if (s.fragment !== undefined) minFragmentLength = s.fragment;
       document.getElementById('minFragmentLength').value = minFragmentLength;
       if (s.mainFragment !== undefined) mainFragmentLength = s.mainFragment;
@@ -500,7 +502,7 @@
     let fragments = [];
     let currentUtterance = null;
     let isPlaying = false;
-    let selectedVoiceIndex = null;
+    let selectedVoiceURI = null;   // теперь храним URI
     let currentMode = '';
     let replacementDict = new Map();
     let replacementDictSortedKeys = [];
@@ -1414,13 +1416,17 @@
       }
     }
 
-    function getValidatedVoiceIndex() {
-      let index = selectedVoiceIndex;
-      if (index === null) index = parseInt(voiceSelect.value, 10);
-      if (isNaN(index) || index < 0 || index >= voices.length || !voices[index]) {
-        throw new Error('Выберите корректный голос');
+    // Функция для получения индекса голоса по сохранённому URI
+    function getVoiceIndex() {
+      if (!voices || voices.length === 0) {
+        throw new Error('Нет доступных голосов');
       }
-      return index;
+      if (selectedVoiceURI) {
+        const idx = voices.findIndex(v => v.voiceURI === selectedVoiceURI);
+        if (idx !== -1) return idx;
+      }
+      // Если сохранённый голос не найден, возвращаем первый доступный
+      return 0;
     }
 
     function splitIntoSubFragments(text) {
@@ -1460,7 +1466,7 @@
       }
       if (replacementDict.size > 0) textToSpeak = applyReplacements(textToSpeak);
       try {
-        const voiceIndex = getValidatedVoiceIndex();
+        const voiceIndex = getVoiceIndex();
         currentUtterance = new SpeechSynthesisUtterance(textToSpeak);
         currentUtterance.voice = voices[voiceIndex];
         currentUtterance.rate = currentSpeed;
@@ -1608,10 +1614,6 @@
     function loadVoicesForModal() {
       voices = synth.getVoices();
 
-      if (selectedVoiceIndex !== null && (selectedVoiceIndex < 0 || selectedVoiceIndex >= voices.length || !voices[selectedVoiceIndex])) {
-        selectedVoiceIndex = null;
-      }
-
       voiceSelect.innerHTML = '';
 
       const lowerName = v => v.name.toLowerCase();
@@ -1684,15 +1686,25 @@
         }
       });
 
-      if (selectedVoiceIndex !== null && voices[selectedVoiceIndex]) {
-        voiceSelect.value = selectedVoiceIndex;
+      // Восстанавливаем выбранный голос по URI
+      if (selectedVoiceURI) {
+        const index = voices.findIndex(v => v.voiceURI === selectedVoiceURI);
+        if (index !== -1) {
+          voiceSelect.value = index;
+        } else {
+          selectedVoiceURI = null;
+        }
       }
+
       voiceInfo.textContent = `Доступно голосов: ${voices.length}`;
     }
 
     voiceSelect.addEventListener('change', () => {
-      selectedVoiceIndex = parseInt(voiceSelect.value, 10);
-      saveAllSettings();
+      const idx = parseInt(voiceSelect.value, 10);
+      if (!isNaN(idx) && voices[idx]) {
+        selectedVoiceURI = voices[idx].voiceURI;
+        saveAllSettings();
+      }
     });
 
     if (synth) {
