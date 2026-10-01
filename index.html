@@ -213,9 +213,9 @@
   <div id="mainInterface" class="hidden">
     <div class="control-row">
       <div class="speed-control">
-        <button class="speed-btn" id="speedDown" title="Уменьшить скорость" tabindex="0" aria-label="Уменьшить скорость речи">⏬</button>
+        <button class="speed-btn" id="speedDown" title="Уменьшить скорость (,)" tabindex="0" aria-label="Уменьшить скорость речи. Клавиша: запятая">⏬</button>
         <span class="speed-value" id="speedValue" aria-live="polite">1.00x</span>
-        <button class="speed-btn" id="speedUp" title="Увеличить скорость" tabindex="0" aria-label="Увеличить скорость речи">⏫</button>
+        <button class="speed-btn" id="speedUp" title="Увеличить скорость (.)" tabindex="0" aria-label="Увеличить скорость речи. Клавиша: точка">⏫</button>
       </div>
       <div class="font-size-control">
         <button class="font-btn control-btn" id="fontSmaller" title="Уменьшить шрифт" aria-label="Уменьшить шрифт">A−</button>
@@ -224,9 +224,9 @@
       </div>
       <div class="playback-control">
         <button class="control-btn" id="prevFragment" title="Предыдущий фрагмент" tabindex="0" aria-label="Предыдущий фрагмент">⏪</button>
-        <button class="control-btn" id="prevSubFragment" title="Предыдущий субфрагмент" tabindex="0" aria-label="Перемещение на один субфрагмент назад">◄</button>
+        <button class="control-btn" id="prevSubFragment" title="Предыдущий субфрагмент (j)" tabindex="0" aria-label="Перемещение на один субфрагмент назад. Клавиша J">◄</button>
         <button class="control-btn play-btn" id="playPause" title="Пуск/Пауза" tabindex="0" aria-label="Воспроизведение/Пауза">▶</button>
-        <button class="control-btn" id="nextSubFragment" title="Следующий субфрагмент" tabindex="0" aria-label="Перемещение на один субфрагмент вперед">►</button>
+        <button class="control-btn" id="nextSubFragment" title="Следующий субфрагмент (l)" tabindex="0" aria-label="Перемещение на один субфрагмент вперед. Клавиша L">►</button>
         <button class="control-btn" id="nextFragment" title="Следующий фрагмент" tabindex="0" aria-label="Следующий фрагмент">⏩</button>
       </div>
       <button class="menu-toggle" id="menuToggle" title="Вернуться в меню" tabindex="0" aria-label="Открыть главное меню">☰</button>
@@ -301,17 +301,18 @@
         <li><strong>Alt+K</strong>, <strong>Alt+Л</strong>, <strong>K</strong>, <strong>Л</strong>: Пуск/Пауза (работают везде)</li>
         <li><strong>←/→</strong>: Навигация по фрагментам</li>
         <li><strong>Alt+← / Alt+→</strong>: Навигация по фрагментам (глобально)</li>
-        <li><strong>↑/↓</strong>: Скорость (локально)</li>
-        <li><strong>Alt+↑ / Alt+↓</strong>: Скорость (глобально)</li>
-        <li><strong>j / l</strong>: Громкость (j — тише, l — громче) и их русские аналоги о/д</li>
-        <li><strong>Alt+J / Alt+L</strong> (и русские аналоги): альтернативные комбинации для громкости</li>
+        <li><strong>, / .</strong> (а также <strong>&lt; / &gt;</strong>, <strong>б / ю</strong>, <strong>Б / Ю</strong> — с Shift и без): Скорость речи локально (медленнее / быстрее)</li>
+        <li><strong>↑ / ↓</strong>: Прокрутка текста на одну строку вверх / вниз (ручная прокрутка отключает авто-центрирование до смены основного фрагмента)</li>
+        <li><strong>Alt+, / Alt+.</strong> (в любой раскладке, с Shift и без): Скорость речи глобально</li>
+        <li><strong>9 / 0</strong>: Громкость (9 — тише, 0 — громче)</li>
+        <li><strong>j / l</strong>: Навигация внутри текущего фрагмента (субфрагменты; j — назад, l — вперёд)</li>
+        <li><strong>Alt+J / Alt+L</strong>: Субфрагменты глобально</li>
         <li><strong>Alt+S</strong>: Сохранить текущую позицию (только для файлов)</li>
         <li><strong>Alt+B</strong>: Мгновенная остановка озвучки (работает везде)</li>
         <li><strong>Alt++ / Alt+-</strong>: Размер шрифта</li>
         <li><strong>Alt+F / Alt+А</strong>: Скрыть/показать панель управления (имитация полноэкранного режима)</li>
         <li><strong>Tab</strong> и <strong>Shift+Tab</strong>: Навигация по элементам</li>
         <li><strong>Escape</strong>: Закрыть модальное окно, вернуться в меню или (в режиме ввода текста) переключиться в режим озвучки</li>
-        <li><strong>, / . (б/ю)</strong>: Навигация внутри текущего фрагмента (субфрагменты)</li>
       </ul>
       <p><strong>Управление касаниями (на экране с текстом):</strong></p>
       <ul>
@@ -516,6 +517,10 @@
     let lastMainIndexForSub = -1;
     // ==================== ПЕРЕМЕННАЯ ДЛЯ ДВОЙНОГО ТАПА ====================
     let singleTapTimer = null;
+    // ==================== ФЛАГ РУЧНОЙ ПРОКРУТКИ ====================
+    // true — пользователь сам прокрутил текст стрелками; авто-центрирование
+    // отключается до смены основного фрагмента.
+    let userScrolled = false;
 
     // ==================== ПРОВЕРКА ПОДДЕРЖКИ SPEECH SYNTHESIS ====================
     if (!window.speechSynthesis) {
@@ -586,15 +591,15 @@
     const fragmentRangeInfo = document.getElementById('fragmentRangeInfo');
 
     function initAccessibility() {
-      document.getElementById('speedDown').setAttribute('aria-label', 'Уменьшить скорость речи');
-      document.getElementById('speedUp').setAttribute('aria-label', 'Увеличить скорость речи');
+      document.getElementById('speedDown').setAttribute('aria-label', 'Уменьшить скорость речи. Клавиши: запятая, меньше');
+      document.getElementById('speedUp').setAttribute('aria-label', 'Увеличить скорость речи. Клавиши: точка, больше');
       document.getElementById('fontSmaller').setAttribute('aria-label', 'Уменьшить шрифт');
       document.getElementById('fontLarger').setAttribute('aria-label', 'Увеличить шрифт');
       document.getElementById('playPause').setAttribute('aria-label', 'Воспроизведение/Пауза');
       document.getElementById('prevFragment').setAttribute('aria-label', 'Предыдущий фрагмент');
       document.getElementById('nextFragment').setAttribute('aria-label', 'Следующий фрагмент');
-      document.getElementById('prevSubFragment').setAttribute('aria-label', 'Перемещение на один субфрагмент назад');
-      document.getElementById('nextSubFragment').setAttribute('aria-label', 'Перемещение на один субфрагмент вперед');
+      document.getElementById('prevSubFragment').setAttribute('aria-label', 'Перемещение на один субфрагмент назад. Клавиша J');
+      document.getElementById('nextSubFragment').setAttribute('aria-label', 'Перемещение на один субфрагмент вперёд. Клавиша L');
       document.getElementById('menuToggle').setAttribute('aria-label', 'Открыть главное меню');
       statusContainer.setAttribute('aria-live', 'polite');
       document.querySelectorAll('.modal').forEach(setupModalAccessibility);
@@ -693,6 +698,23 @@
         updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
       }
     }
+
+    // ==================== РУЧНАЯ ПРОКРУТКА ТЕКСТА ПО СТРОКАМ ====================
+    // Сдвигает видимую область текста на одну строку вверх (direction = -1)
+    // или вниз (direction = +1). Отключает авто-центрирование до смены
+    // основного фрагмента (см. userScrolled и updateTextDisplay).
+    function scrollTextByLine(direction) {
+      if (textContent.classList.contains('hidden')) return;
+      const container = textContent.parentElement;
+      if (!container) return;
+      let lineHeight = parseFloat(getComputedStyle(textContent).lineHeight);
+      if (!lineHeight || isNaN(lineHeight)) {
+        lineHeight = currentFontSize * 1.6;
+      }
+      container.scrollTop += direction * lineHeight;
+      userScrolled = true;
+    }
+    // ==========================================================================
 
     function toggleFullscreen() {
       const controls = document.querySelector('.control-row');
@@ -812,6 +834,8 @@
       }
     }
 
+    // ==================== ОБРАБОТЧИК КЛАВИАТУРЫ ====================
+    // Хоткеи определяются по event.code (физическая позиция клавиши).
     document.addEventListener('keydown', function(event) {
       if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') {
         if (event.key === 'Escape' && event.target.id === 'textInput') {
@@ -825,6 +849,7 @@
             subFragments = null;
             lastMainIndexForSub = -1;
             currentFragmentIndex = 0;
+            userScrolled = false;
             textInput.classList.add('hidden');
             textContent.classList.remove('hidden');
             updateTextDisplay();
@@ -841,11 +866,11 @@
         if (!event.altKey) return;
       }
       
-      const openModal = document.querySelector('.modal:not(.hidden)');
-      if (openModal) {
+      const openModalEl = document.querySelector('.modal:not(.hidden)');
+      if (openModalEl) {
         if (event.key === 'Escape') {
           event.preventDefault();
-          closeModal(openModal.id);
+          closeModal(openModalEl.id);
           return;
         }
       }
@@ -863,71 +888,66 @@
         }
       }
 
-      if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-        const key = event.key.toLowerCase();
-        if (key === ',' || key === '.' || key === 'б' || key === 'ю') {
-          if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') return;
-          event.preventDefault();
-          navigateSubFragment((key === ',' || key === 'б') ? 'prev' : 'next');
-          return;
-        }
-      }
-      
+      // ---------- ГЛОБАЛЬНЫЕ ALT-КОМБИНАЦИИ ----------
       if (event.altKey) {
         const key = event.key.toLowerCase();
-        switch(key) {
-          case 'f': case 'а':
+        // Шрифт: по event.key, чтобы отличать '-' от '_'
+        if (key === '+' || key === '=') {
+          event.preventDefault();
+          adjustFontSize(+1);
+          return;
+        }
+        if (key === '-') {
+          event.preventDefault();
+          adjustFontSize(-1);
+          return;
+        }
+
+        switch (event.code) {
+          case 'KeyF': // Alt+F (и Alt+А в русской — та же физическая клавиша)
             event.preventDefault();
             toggleFullscreen();
             return;
-          case 'k': case 'л':
+          case 'KeyK': // Alt+K / Alt+Л
             event.preventDefault();
             playPauseBtn.click();
             return;
-          case 'arrowleft':
+          case 'ArrowLeft':
             event.preventDefault();
             prevFragmentBtn.click();
             return;
-          case 'arrowright':
+          case 'ArrowRight':
             event.preventDefault();
             nextFragmentBtn.click();
             return;
-          case 's': case 'ы':
+          case 'KeyS': // Alt+S / Alt+Ы
             if (currentMode === 'file') {
               event.preventDefault();
               savePositionManually();
             }
             return;
-          case 'b': case 'и':
+          case 'KeyB': // Alt+B / Alt+И
             event.preventDefault();
             synth.cancel();
             isPlaying = false;
             playPauseBtn.textContent = '▶';
             updateStatus('Озвучка прервана', 'info');
             return;
-          case '+': case '=':
+          case 'KeyJ': // Alt+J — субфрагмент назад (глобально)
             event.preventDefault();
-            adjustFontSize(+1);
+            navigateSubFragment('prev');
             return;
-          case '-':
+          case 'KeyL': // Alt+L — субфрагмент вперёд (глобально)
             event.preventDefault();
-            adjustFontSize(-1);
+            navigateSubFragment('next');
             return;
-          case 'arrowup':
-            event.preventDefault();
-            adjustSpeed(+1);
-            return;
-          case 'arrowdown':
+          case 'Comma': // Alt+, (и Alt+<, Alt+б, Alt+Б) — скорость медленнее
             event.preventDefault();
             adjustSpeed(-1);
             return;
-          case 'j': case 'о':
+          case 'Period': // Alt+. (и Alt+>, Alt+ю, Alt+Ю) — скорость быстрее
             event.preventDefault();
-            adjustVolume(-1);
-            return;
-          case 'l': case 'д':
-            event.preventDefault();
-            adjustVolume(+1);
+            adjustSpeed(+1);
             return;
         }
       }
@@ -935,12 +955,13 @@
       if (!startScreen.classList.contains('hidden')) return;
       if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') return;
       
-      switch(event.key) {
-        case 'k': case 'K': case 'л': case 'Л':
+      // ---------- ЛОКАЛЬНЫЕ (НЕ-ALT) КОМБИНАЦИИ ----------
+      switch (event.code) {
+        case 'KeyK': // K / Л
           event.preventDefault();
           playPauseBtn.click();
           return;
-        case ' ':
+        case 'Space':
           if (event.target === textContent) {
             event.preventDefault();
             playPauseBtn.click();
@@ -948,11 +969,13 @@
           return;
         case 'Escape':
           event.preventDefault();
-          const anyModal = document.querySelector('.modal:not(.hidden)');
-          if (anyModal) {
-            closeModal(anyModal.id);
-          } else {
-            showStartScreen();
+          {
+            const anyModal = document.querySelector('.modal:not(.hidden)');
+            if (anyModal) {
+              closeModal(anyModal.id);
+            } else {
+              showStartScreen();
+            }
           }
           return;
         case 'ArrowLeft':
@@ -964,23 +987,40 @@
           nextFragmentBtn.click();
           return;
         case 'ArrowDown':
+          // Ручная прокрутка текста на строку вниз (без preventDefault)
+          scrollTextByLine(+1);
+          return;
+        case 'ArrowUp':
+          // Ручная прокрутка текста на строку вверх (без preventDefault)
+          scrollTextByLine(-1);
+          return;
+        case 'KeyJ': // J — субфрагмент назад
+          event.preventDefault();
+          navigateSubFragment('prev');
+          return;
+        case 'KeyL': // L — субфрагмент вперёд
+          event.preventDefault();
+          navigateSubFragment('next');
+          return;
+        case 'Comma': // , / < / б / Б — скорость медленнее
           event.preventDefault();
           adjustSpeed(-1);
           return;
-        case 'ArrowUp':
+        case 'Period': // . / > / ю / Ю — скорость быстрее
           event.preventDefault();
           adjustSpeed(+1);
           return;
-        case 'j': case 'J': case 'о': case 'О':
+        case 'Digit9': // 9 — громкость тише
           event.preventDefault();
           adjustVolume(-1);
           return;
-        case 'l': case 'L': case 'д': case 'Д':
+        case 'Digit0': // 0 — громкость громче
           event.preventDefault();
           adjustVolume(+1);
           return;
       }
     });
+    // ==================== КОНЕЦ ОБРАБОТЧИКА КЛАВИАТУРЫ ====================
 
     // ==================== НОВЫЙ ОБРАБОТЧИК ДВОЙНОГО ТАПА ПО ЦЕНТРУ ЭКРАНА ====================
     // Работает всегда, когда текст отображается (даже на паузе или до начала воспроизведения)
@@ -1014,15 +1054,10 @@
       } else if (event.detail === 1) {
         // Одиночный тап — ждём, не будет ли второго
         if (singleTapTimer) {
-          // Если таймер уже есть, значит это второй клик для двойного? нет, detail=1 при первом и втором по отдельности.
-          // На самом деле событие click с detail=1 приходит дважды при двойном тапе (первый и второй клик).
-          // Поэтому мы должны сбросить предыдущий таймер и не вызывать паузу сейчас.
           clearTimeout(singleTapTimer);
           singleTapTimer = null;
-          // Не вызываем паузу — двойной тап уже обработан выше (detail=2 придёт после двух detail=1)
           return;
         }
-        // Запускаем таймер на выполнение паузы/пуска через задержку
         singleTapTimer = setTimeout(() => {
           playPauseBtn.click();
           singleTapTimer = null;
@@ -1030,7 +1065,6 @@
       }
     }
 
-    // Добавляем обработчик на элемент textContent (он же #textContent)
     if (textContent) {
       textContent.addEventListener('click', handleCenterTap);
     }
@@ -1372,6 +1406,7 @@
           fragments = splitIntoFragments(rawText);
           const savedPosition = loadPositionForFile(file.name);
           currentFragmentIndex = savedPosition;
+          userScrolled = false;
           subFragments = null;
           lastMainIndexForSub = -1;
           startScreen.classList.add('hidden');
@@ -1412,7 +1447,11 @@
       const currentSpan = textContent.querySelector('.current-fragment');
       if (currentSpan) {
         currentSpan.setAttribute('aria-current', 'location');
-        currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Авто-центрирование отключено, пока пользователь сам не «отпустит»
+        // управление — т.е. до смены основного фрагмента (userScrolled = false).
+        if (!userScrolled) {
+          currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
     }
 
@@ -1474,6 +1513,7 @@
         currentUtterance.volume = currentVolume;
         currentUtterance.onstart = () => { updateTextDisplay(); };
         currentUtterance.onend = () => {
+          let mainIndexChanged = false;
           if (subFragments && subFragments.length > 0 && lastMainIndexForSub === currentFragmentIndex) {
             if (currentSubIndex + 1 < subFragments.length) {
               currentSubIndex++;
@@ -1483,10 +1523,13 @@
               subFragments = null;
               lastMainIndexForSub = -1;
               currentFragmentIndex++;
+              mainIndexChanged = true;
             }
           } else {
             currentFragmentIndex++;
+            mainIndexChanged = true;
           }
+          if (mainIndexChanged) userScrolled = false;
           if (currentFragmentIndex < fragments.length && isPlaying) {
             setTimeout(speakCurrent, 100);
           } else {
@@ -1550,6 +1593,7 @@
       currentFragmentIndex = Math.max(0, currentFragmentIndex - 1);
       subFragments = null;
       lastMainIndexForSub = -1;
+      userScrolled = false;
       updateTextDisplay();
       updateStatus(`Фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`);
       if (isPlaying) safeCancelAndSpeak();
@@ -1559,6 +1603,7 @@
       currentFragmentIndex = Math.min(fragments.length - 1, currentFragmentIndex + 1);
       subFragments = null;
       lastMainIndexForSub = -1;
+      userScrolled = false;
       updateTextDisplay();
       updateStatus(`Фрагмент ${currentFragmentIndex + 1} из ${fragments.length}`);
       if (isPlaying) safeCancelAndSpeak();
@@ -1599,7 +1644,10 @@
           updateStatus('Нет текста для чтения', 'error');
           return;
         }
-        if (currentFragmentIndex >= fragments.length) currentFragmentIndex = 0;
+        if (currentFragmentIndex >= fragments.length) {
+          currentFragmentIndex = 0;
+          userScrolled = false;
+        }
         isPlaying = true;
         playPauseBtn.textContent = '⏸';
         if (currentMode === 'text' && document.activeElement !== textInput) {
@@ -1757,6 +1805,7 @@
           currentFragmentIndex = newIndex;
           subFragments = null;
           lastMainIndexForSub = -1;
+          userScrolled = false;
           updateTextDisplay();
           updateStatus(`Позиция изменена на фрагмент ${currentFragmentIndex + 1}`, 'info');
           if (isPlaying) {
@@ -1888,7 +1937,6 @@
           } else {
             firstControl.focus();
           }
-          return;
         }
       });
     });
