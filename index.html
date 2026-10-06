@@ -333,6 +333,15 @@
     <div class="modal-content">
       <select id="voiceSelect" aria-label="Выберите голос"></select>
       <div id="voiceInfo"></div>
+      <div id="voiceHelp" class="status warning" style="display: none; margin-top: 10px;">
+        <strong>Если голосов 0:</strong> на мобильных устройствах (особенно в Edge) движок синтеза речи может требовать ручной активации. Попробуйте:
+        <ul style="margin: 8px 0 0 20px; padding: 0;">
+          <li>В мобильном Edge: меню браузера → «Чтение вслух» → выделите любое слово → вернитесь в приложение и нажмите «Обновить голоса».</li>
+          <li>В Chrome: убедитесь, что в системе Android установлен и выбран движок Google TTS (Настройки → Система → Языки и ввод → Синтез речи).</li>
+          <li>Проверьте подключение к интернету — некоторые голоса загружаются из сети.</li>
+        </ul>
+      </div>
+      <button id="refreshVoicesBtn" class="action-btn" style="margin-top: 15px; background: #4CAF50; color: white;" tabindex="0">Обновить голоса</button>
     </div>
     <button class="close-btn" data-modal="voiceModal" tabindex="0">Применить</button>
   </div>
@@ -577,6 +586,7 @@
     const speedValue = document.getElementById('speedValue');
     const statusContainer = document.getElementById('status');
     const voiceInfo = document.getElementById('voiceInfo');
+    const voiceHelp = document.getElementById('voiceHelp');
     const dictStatus = document.getElementById('dictStatus');
     const dictInfo = document.getElementById('dictInfo');
     const dictErrors = document.getElementById('dictErrors');
@@ -837,6 +847,10 @@
     // ==================== ОБРАБОТЧИК КЛАВИАТУРЫ ====================
     // Хоткеи определяются по event.code (физическая позиция клавиши).
     document.addEventListener('keydown', function(event) {
+      // Не перехватываем сочетания с Ctrl/Cmd — пусть браузер обрабатывает их сам
+      // (например, Ctrl+9, Ctrl+0, Ctrl+плюс/минус, Ctrl+← и т.п.).
+      if (event.ctrlKey || event.metaKey) return;
+
       if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') {
         if (event.key === 'Escape' && event.target.id === 'textInput') {
           event.preventDefault();
@@ -1074,20 +1088,69 @@
       openModal('infoModal');
     }
 
-    function showVoiceSelect() {
-      loadVoicesForModal();
-      if (voices.length === 0) {
-        const warmup = new SpeechSynthesisUtterance('');
+    // ==================== ОБНОВЛЁННАЯ ФУНКЦИЯ ВЫБОРА ГОЛОСА ====================
+    // Ключевое изменение: внутри пользовательского жеста (клика) выполняем
+    // "прогрев" движка синтеза через speak() + cancel(). На Android это
+    // заставляет браузер инициализировать TTS и начать отдавать голоса
+    // через getVoices(). Дополнительно используется механизм повторных
+    // попыток с увеличивающейся задержкой, если голоса ещё не подгрузились.
+    function warmupSpeechEngine() {
+      if (!window.speechSynthesis) return;
+      try {
+        const warmup = new SpeechSynthesisUtterance(' ');
         warmup.volume = 0;
-        synth.speak(warmup);
-        synth.cancel();
-        setTimeout(() => {
-          loadVoicesForModal();
-          if (voices.length === 0) setTimeout(loadVoicesForModal, 500);
-        }, 300);
+        warmup.rate = 10; // максимально быстро, чтобы не было слышно
+        warmup.pitch = 1;
+        warmup.lang = 'ru-RU';
+        // Важно: speak() должен быть вызван синхронно в обработчике клика
+        window.speechSynthesis.speak(warmup);
+        // Сразу отменяем — нам нужен только побочный эффект инициализации
+        window.speechSynthesis.cancel();
+      } catch (e) {
+        console.warn('Warmup speech engine error:', e);
       }
+    }
+
+    function loadVoicesWithRetry(maxAttempts = 12) {
+      let attempt = 0;
+      const tryLoad = () => {
+        loadVoicesForModal();
+        if (voices.length > 0 || attempt >= maxAttempts) {
+          // Обновляем видимость подсказки после последней попытки
+          updateVoiceHelpVisibility();
+          return;
+        }
+        attempt++;
+        setTimeout(tryLoad, 150 * attempt);
+      };
+      tryLoad();
+    }
+
+    function showVoiceSelect() {
+      // 1. Прогрев движка синтеза внутри пользовательского жеста
+      warmupSpeechEngine();
+
+      // 2. Первичная загрузка
+      loadVoicesForModal();
+
+      // 3. Если голоса ещё не подгрузились — запускаем повторные попытки
+      if (voices.length === 0) {
+        loadVoicesWithRetry();
+      }
+
+      // 4. Открываем модальное окно
       openModal('voiceModal');
     }
+
+    function updateVoiceHelpVisibility() {
+      if (!voiceHelp) return;
+      if (voices.length === 0) {
+        voiceHelp.style.display = 'block';
+      } else {
+        voiceHelp.style.display = 'none';
+      }
+    }
+    // ================================================================================
 
     function openFile() {
       const fileInput = document.getElementById('fileInput');
@@ -1505,9 +1568,21 @@
       }
       if (replacementDict.size > 0) textToSpeak = applyReplacements(textToSpeak);
       try {
-        const voiceIndex = getVoiceIndex();
         currentUtterance = new SpeechSynthesisUtterance(textToSpeak);
-        currentUtterance.voice = voices[voiceIndex];
+        // ВАЖНО: fallback для случая, когда голоса недоступны (например, на Android
+        // вскоре после загрузки страницы). Указываем язык напрямую — браузер сам
+        // подберёт подходящий голос.
+        if (voices.length > 0) {
+          try {
+            const voiceIndex = getVoiceIndex();
+            currentUtterance.voice = voices[voiceIndex];
+          } catch (e) {
+            console.warn('Голос недоступен, используется язык по умолчанию:', e.message);
+            currentUtterance.lang = navigator.language || 'ru-RU';
+          }
+        } else {
+          currentUtterance.lang = navigator.language || 'ru-RU';
+        }
         currentUtterance.rate = currentSpeed;
         currentUtterance.pitch = 1.0;
         currentUtterance.volume = currentVolume;
@@ -1659,6 +1734,8 @@
       }
     });
 
+    // ==================== ОБНОВЛЁННАЯ ФУНКЦИЯ ЗАГРУЗКИ ГОЛОСОВ ====================
+    // Дополнительно управляет видимостью подсказки voiceHelp, если голосов 0.
     function loadVoicesForModal() {
       voices = synth.getVoices();
 
@@ -1745,7 +1822,11 @@
       }
 
       voiceInfo.textContent = `Доступно голосов: ${voices.length}`;
+
+      // Управляем видимостью подсказки для мобильных устройств
+      updateVoiceHelpVisibility();
     }
+    // ================================================================================
 
     voiceSelect.addEventListener('change', () => {
       const idx = parseInt(voiceSelect.value, 10);
@@ -1755,9 +1836,24 @@
       }
     });
 
+    // ==================== ОБНОВЛЁННЫЙ СЛУШАТЕЛЬ voiceschanged ====================
+    // Теперь он не только перезагружает список, но и принудительно обновляет
+    // селект, если модальное окно выбора голоса открыто в данный момент.
     if (synth) {
-      synth.addEventListener('voiceschanged', loadVoicesForModal);
+      synth.addEventListener('voiceschanged', () => {
+        loadVoicesForModal();
+        const voiceModal = document.getElementById('voiceModal');
+        if (voiceModal && !voiceModal.classList.contains('hidden')) {
+          // Селект уже перестроен внутри loadVoicesForModal().
+          // Восстанавливаем выбранный голос (если он был выбран ранее).
+          if (selectedVoiceURI) {
+            const idx = voices.findIndex(v => v.voiceURI === selectedVoiceURI);
+            if (idx !== -1) voiceSelect.value = idx;
+          }
+        }
+      });
     }
+    // ================================================================================
 
     menuToggleBtn.addEventListener('click', showStartScreen);
 
@@ -1841,6 +1937,21 @@
       document.getElementById('menuExit').addEventListener('click', closeApp);
       document.getElementById('fileInput').addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
       document.getElementById('dictInput').addEventListener('change', (e) => handleDictFile(e.target.files[0]));
+
+      // Кнопка "Обновить голоса" внутри модального окна выбора голоса
+      const refreshVoicesBtn = document.getElementById('refreshVoicesBtn');
+      if (refreshVoicesBtn) {
+        refreshVoicesBtn.addEventListener('click', () => {
+          warmupSpeechEngine();
+          loadVoicesForModal();
+          if (voices.length === 0) {
+            loadVoicesWithRetry();
+          } else {
+            updateStatus(`Обновлено голосов: ${voices.length}`, 'info');
+          }
+        });
+      }
+
       document.querySelectorAll('.close-btn').forEach(btn => {
         const modalId = btn.dataset.modal;
         const action = btn.dataset.action;
