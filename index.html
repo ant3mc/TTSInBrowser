@@ -1572,10 +1572,20 @@
         // ВАЖНО: fallback для случая, когда голоса недоступны (например, на Android
         // вскоре после загрузки страницы). Указываем язык напрямую — браузер сам
         // подберёт подходящий голос.
+        // ИСПРАВЛЕНО: теперь при выбранном голосе всегда проставляем utterance.lang
+        // из voice.lang. На HyperOS/MIUI (Xiaomi, POCO) системный движок TTS часто
+        // ориентируется именно на lang реплики; без него английский текст читается
+        // русским голосом, даже если выбран английский голос.
         if (voices.length > 0) {
           try {
             const voiceIndex = getVoiceIndex();
-            currentUtterance.voice = voices[voiceIndex];
+            const v = voices[voiceIndex];
+            currentUtterance.voice = v;
+            if (v && v.lang) {
+              currentUtterance.lang = v.lang;
+            } else {
+              currentUtterance.lang = navigator.language || 'ru-RU';
+            }
           } catch (e) {
             console.warn('Голос недоступен, используется язык по умолчанию:', e.message);
             currentUtterance.lang = navigator.language || 'ru-RU';
