@@ -1363,93 +1363,179 @@
       reader.readAsText(file, 'UTF-8');
     }
 
+    // ============================================================================
+    // НОВЫЙ АЛГОРИТМ РАЗБИЕНИЯ НА ОСНОВНЫЕ ФРАГМЕНТЫ (по ТЗ)
+    // ============================================================================
     function splitIntoFragments(text) {
       if (!text || typeof text !== 'string') return [];
-      const minLength = minFragmentLength;
+
+      // Нормализуем переводы строк: \r\n → \n, одиночный \r → \n.
+      // По ТЗ «перевод строки» — это \n и \v, но на практике \r\n
+      // нужно свести к \n, иначе Windows-файлы будут резаться неверно.
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
       const textLength = text.length;
       const fragments = [];
       let currentIndex = 0;
 
-      function isDigit(char) { return char >= '0' && char <= '9'; }
-      function isLowerCaseLetter(char) { return (char >= 'a' && char <= 'z') || (char >= 'а' && char <= 'я'); }
-      function isUpperCaseLetter(char) { return (char >= 'A' && char <= 'Z') || (char >= 'А' && char <= 'Я'); }
+      const minLength = minFragmentLength;
+      const mainLength = mainFragmentLength;
+      // fallbackDistance по ТЗ всегда равен mainFragmentLength.
+      // Отдельную переменную не заводим — при смене mainFragmentLength
+      // fallbackDistance автоматически «становится» новым значением.
+      const fallbackDistance = mainFragmentLength;
+
+      // «Пробельный символ» — горизонтальный: пробел, \t, \f, NBSP и т.п.,
+      // но НЕ перевод строки (\n, \v) и не \r (нормализован выше).
+      const HWS_RE = /[^\S\n\v\r]/;
+      function isHWS(ch) { return ch !== undefined && HWS_RE.test(ch); }
+      function isLineBreak(ch) { return ch === '\n' || ch === '\v'; }
+      function isDigit(ch) { return ch >= '0' && ch <= '9'; }
+      // \p{Ll} покрывает строчные буквы всех алфавитов (включая ё, і и т.п.)
+      const LOWER_RE = /\p{Ll}/u;
+      function isLower(ch) { return ch !== undefined && ch !== '' && LOWER_RE.test(ch); }
+
+      // Возвращает { priority, end } лучшего разделителя, начинающегося в позиции i,
+      // либо null. При совпадении нескольких паттернов в одной позиции
+      // возвращается наивысший приоритет (P1 → P8).
+      function matchSeparatorAt(i) {
+        const c = text[i];
+
+        // P1: перевод строки + HWS* + перевод строки
+        if (isLineBreak(c)) {
+          let j = i + 1;
+          while (j < textLength && isHWS(text[j])) j++;
+          if (j < textLength && isLineBreak(text[j])) {
+            return { priority: 1, end: j + 1 };
+          }
+        }
+
+        // P2: HWS{2,} + перевод строки
+        if (isHWS(c)) {
+          let j = i;
+          while (j < textLength && isHWS(text[j])) j++;
+          if (j - i >= 2 && j < textLength && isLineBreak(text[j])) {
+            return { priority: 2, end: j + 1 };
+          }
+        }
+
+        // P3: }
+        if (c === '}') return { priority: 3, end: i + 1 };
+
+        // P4: … или ...
+        if (c === '\u2026') return { priority: 4, end: i + 1 };
+        if (c === '.' && text.startsWith('...', i)) return { priority: 4, end: i + 3 };
+
+        // P5: . ! ? с оговорками
+        if (c === '.') {
+          const next = i + 1 < textLength ? text[i + 1] : '';
+          if (!(next && (isDigit(next) || isLower(next)))) {
+            return { priority: 5, end: i + 1 };
+          }
+        }
+        if (c === '!' || c === '?') {
+          const next = i + 1 < textLength ? text[i + 1] : '';
+          if (!(next && (isLower(next) || next === '('))) {
+            return { priority: 5, end: i + 1 };
+          }
+        }
+
+        // P6: HWS + перевод строки
+        if (isHWS(c)) {
+          const next = i + 1 < textLength ? text[i + 1] : '';
+          if (next && isLineBreak(next)) {
+            return { priority: 6, end: i + 2 };
+          }
+        }
+
+        // P7: перевод строки + HWS{1,}
+        if (isLineBreak(c)) {
+          const next = i + 1 < textLength ? text[i + 1] : '';
+          if (next && isHWS(next)) {
+            let j = i + 1;
+            while (j < textLength && isHWS(text[j])) j++;
+            return { priority: 7, end: j };
+          }
+        }
+
+        // P8: ;
+        if (c === ';') return { priority: 8, end: i + 1 };
+
+        return null;
+      }
 
       while (currentIndex < textLength) {
-        let fragmentEndIndex = currentIndex + minLength;
-        if (fragmentEndIndex > textLength) {
-          const fragment = text.substring(currentIndex);
-          if (fragment.trim()) fragments.push(fragment);
+        const minEnd = currentIndex + minLength;
+        if (minEnd >= textLength) {
+          const frag = text.substring(currentIndex);
+          if (frag.trim()) fragments.push(frag);
           break;
         }
-        let foundBreak = false;
-        let searchStart = fragmentEndIndex;
-        const mainSearchEnd = Math.min(searchStart + mainFragmentLength, textLength);
-        
-        for (let i = searchStart; i < mainSearchEnd; i++) {
-          const char = text[i];
-          if (char === '\n' || char === '\r' || char === '\v') {
-            fragmentEndIndex = i + 1;
-            foundBreak = true;
-            break;
+        const searchEnd = Math.min(minEnd + mainLength, textLength);
+
+        // Собираем кандидатов в [currentIndex, searchEnd) и выбираем лучшего.
+        // start < searchEnd обеспечен границей цикла; end > minEnd — фильтром.
+        let best = null; // { priority, end }
+        for (let i = currentIndex; i < searchEnd; i++) {
+          const m = matchSeparatorAt(i);
+          if (!m) continue;
+          if (m.end <= minEnd) continue;
+          if (
+            !best ||
+            m.priority < best.priority ||
+            (m.priority === best.priority && m.end > best.end)
+          ) {
+            best = { priority: m.priority, end: m.end };
           }
         }
-        if (!foundBreak) {
-          for (let i = searchStart; i < mainSearchEnd; i++) {
-            if (text[i] === '}') {
-              fragmentEndIndex = i + 1;
-              foundBreak = true;
-              break;
+
+        let fragmentEnd;
+        if (best) {
+          fragmentEnd = best.end; // разделитель может выходить за searchEnd — это норма
+        } else {
+          // ---------- FALLBACK ----------
+          const fbStart = searchEnd;
+          const fbEnd = Math.min(searchEnd + fallbackDistance, textLength);
+
+          // Шаг 1: самый ранний высокоприоритетный разделитель:
+          // многоточие, точка, ? ! ;, простой перевод строки.
+          // Оговорки P5 из основного окна здесь НЕ применяются.
+          let found = -1;
+          for (let i = fbStart; i < fbEnd; i++) {
+            const c = text[i];
+            if (c === '\u2026') { found = i + 1; break; }
+            if (c === '.' && text.startsWith('...', i)) { found = i + 3; break; }
+            if (c === '.' || c === '?' || c === '!' || c === ';') { found = i + 1; break; }
+            if (isLineBreak(c)) { found = i + 1; break; }
+          }
+
+          // Шаг 2: первый попавшийся разделитель без приоритета — запятая или HWS.
+          if (found === -1) {
+            for (let i = fbStart; i < fbEnd; i++) {
+              const c = text[i];
+              if (c === ',' || isHWS(c)) { found = i + 1; break; }
             }
           }
+
+          // Шаг 3: жёсткий рез по концу fallback-диапазона.
+          fragmentEnd = (found !== -1) ? found : fbEnd;
         }
-        if (!foundBreak) {
-          for (let i = searchStart; i < mainSearchEnd; i++) {
-            const char = text[i];
-            const nextChar = i + 1 < textLength ? text[i + 1] : '';
-            if (char === '.') {
-              if (nextChar && (isDigit(nextChar) || isLowerCaseLetter(nextChar))) continue;
-              fragmentEndIndex = i + 1;
-              foundBreak = true;
-              break;
-            }
-            if (char === '!' || char === '?') {
-              if (nextChar && (isLowerCaseLetter(nextChar) || nextChar === '(')) continue;
-              fragmentEndIndex = i + 1;
-              foundBreak = true;
-              break;
-            }
-          }
+
+        // Страховка от зацикливания (по ТЗ невозможна, но пусть будет).
+        if (fragmentEnd <= currentIndex) {
+          fragmentEnd = Math.min(currentIndex + Math.max(minLength, 1), textLength);
         }
-        if (!foundBreak) {
-          for (let i = searchStart; i < mainSearchEnd; i++) {
-            if (text[i] === ';') {
-              fragmentEndIndex = i + 1;
-              foundBreak = true;
-              break;
-            }
-          }
-        }
-        if (!foundBreak) {
-          const extendedSearchEnd = textLength;
-          for (let i = mainSearchEnd; i < extendedSearchEnd; i++) {
-            const char = text[i];
-            if (char === '\n' || char === '\r' || char === '\v' || 
-                char === '.' || char === ',' || char === ';') {
-              fragmentEndIndex = i + 1;
-              foundBreak = true;
-              break;
-            }
-          }
-        }
-        if (!foundBreak) {
-          fragmentEndIndex = textLength;
-        }
-        const fragment = text.substring(currentIndex, fragmentEndIndex);
-        if (fragment.trim()) fragments.push(fragment);
-        currentIndex = fragmentEndIndex;
+
+        const frag = text.substring(currentIndex, fragmentEnd);
+        if (frag.trim()) fragments.push(frag);
+        currentIndex = fragmentEnd;
       }
+
       return fragments;
     }
+    // ============================================================================
+    // КОНЕЦ НОВОГО АЛГОРИТМА РАЗБИЕНИЯ НА ОСНОВНЫЕ ФРАГМЕНТЫ
+    // ============================================================================
 
     function handleFileSelect(file) {
       if (!file) return;
@@ -1468,7 +1554,9 @@
           rawText = content;
           fragments = splitIntoFragments(rawText);
           const savedPosition = loadPositionForFile(file.name);
-          currentFragmentIndex = savedPosition;
+          // Сохранённые позиции по существу не трогаем, но защищаемся от выхода
+          // за новый диапазон фрагментов (после пересчёта разбиения по новому ТЗ).
+          currentFragmentIndex = Math.min(savedPosition, Math.max(0, fragments.length - 1));
           userScrolled = false;
           subFragments = null;
           lastMainIndexForSub = -1;
@@ -1531,12 +1619,89 @@
       return 0;
     }
 
+    // ============================================================================
+    // НОВЫЙ АЛГОРИТМ РАЗБИЕНИЯ НА СУБФРАГМЕНТЫ (по ТЗ)
+    // ============================================================================
     function splitIntoSubFragments(text) {
       if (!text) return [];
-      let parts = text.split(/(?<=[.;:?!\n\r\t\v])/);
-      parts = parts.map(part => part.trim()).filter(part => part !== '');
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const len = text.length;
+      const parts = [];
+      let start = 0;
+      let i = 0;
+
+      const HWS_RE = /[^\S\n\v\r]/;
+      function isHWS(c) { return c !== undefined && HWS_RE.test(c); }
+      function isLineBreak(c) { return c === '\n' || c === '\v'; }
+
+      while (i < len) {
+        const c = text[i];
+        let end = -1;
+
+        // 1. Двойной перевод строки: LB + HWS* + LB
+        if (isLineBreak(c)) {
+          let j = i + 1;
+          while (j < len && isHWS(text[j])) j++;
+          if (j < len && isLineBreak(text[j])) {
+            end = j + 1;
+          }
+        }
+
+        // 2. Многоточие: … или ...
+        if (end === -1) {
+          if (c === '\u2026') end = i + 1;
+          else if (c === '.' && text.startsWith('...', i)) end = i + 3;
+        }
+
+        // 3. Точка
+        if (end === -1 && c === '.') end = i + 1;
+
+        // 4. Точка с запятой
+        if (end === -1 && c === ';') end = i + 1;
+
+        // 5. Вопросительный / восклицательный
+        if (end === -1 && (c === '?' || c === '!')) end = i + 1;
+
+        // 6. HWS{1,} + перевод строки
+        if (end === -1 && isHWS(c)) {
+          let j = i;
+          while (j < len && isHWS(text[j])) j++;
+          if (j < len && isLineBreak(text[j])) end = j + 1;
+        }
+
+        // 7. Перевод строки + HWS{1,}
+        if (end === -1 && isLineBreak(c)) {
+          const next = i + 1 < len ? text[i + 1] : '';
+          if (next && isHWS(next)) {
+            let j = i + 1;
+            while (j < len && isHWS(text[j])) j++;
+            end = j;
+          }
+        }
+
+        // 8. Табуляция (одиночная)
+        if (end === -1 && c === '\t') end = i + 1;
+
+        // 9. Вертикальная табуляция (одиночная)
+        if (end === -1 && c === '\v') end = i + 1;
+
+        if (end !== -1) {
+          const part = text.substring(start, end).trim();
+          if (part) parts.push(part);
+          start = end;
+          i = end;
+        } else {
+          i++;
+        }
+      }
+
+      const tail = text.substring(start).trim();
+      if (tail) parts.push(tail);
       return parts;
     }
+    // ============================================================================
+    // КОНЕЦ НОВОГО АЛГОРИТМА РАЗБИЕНИЯ НА СУБФРАГМЕНТЫ
+    // ============================================================================
 
     function ensureSubFragments() {
       if (fragments.length === 0) return false;
