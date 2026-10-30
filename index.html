@@ -76,7 +76,6 @@ body, #textInput, .text-container { background: #1e1e1e; color: #e0e0e0; }
 .status.error { background: #3e2723; color: #ff8a80; } .status.warning { background: #3e2f0b; color: #ffb74d; }
 .status:not(.error):not(.warning) { background: #1b5e20; color: #a5d6a7; }
 }
-/* СВЕТЛАЯ ТЕМА */
 html[data-theme="light"] body,
 html[data-theme="light"] #textInput,
 html[data-theme="light"] .text-container { background: #fafafa; color: #333; }
@@ -98,7 +97,6 @@ forced-color-adjust: none !important;
 padding: 2px 4px;
 border-radius: 3px;
 }
-/* ТЁМНАЯ ТЕМА №1 (ОРИГИНАЛЬНАЯ) — яркий жёлтый */
 html[data-theme="dark"] body,
 html[data-theme="dark"] #textInput,
 html[data-theme="dark"] .text-container { background: #1e1e1e; color: #e0e0e0; }
@@ -121,7 +119,6 @@ padding: 2px 4px;
 border-radius: 3px;
 font-weight: bold;
 }
-/* ТЁМНАЯ ТЕМА №2 — очень тёмный (почти чёрный) фон с жёлтым оттенком */
 html[data-theme="dark2"] body,
 html[data-theme="dark2"] #textInput,
 html[data-theme="dark2"] .text-container { background: #1e1e1e; color: #e0e0e0; }
@@ -144,7 +141,6 @@ padding: 2px 4px;
 border-radius: 3px;
 font-weight: bold;
 }
-/* Тема auto использует системные настройки */
 html[data-theme="auto"] .current-fragment {
 background: Highlight !important;
 color: HighlightText !important;
@@ -167,7 +163,6 @@ box-shadow: none !important;
 .control-row.hidden + .text-container {
 padding: 6px;
 }
-/* Сообщение о неподдерживаемом браузере */
 #noTTSMessage {
 color: #d32f2f;
 text-align: center;
@@ -176,6 +171,45 @@ padding: 10px;
 border: 1px solid #d32f2f;
 border-radius: 8px;
 background: #ffebee;
+}
+/* ===== Глобальный статус (п. 6) ===== */
+.global-status {
+position: fixed;
+z-index: 10000;
+top: env(safe-area-inset-top, 0);
+left: 50%;
+transform: translateX(-50%);
+max-width: 90vw;
+pointer-events: none;
+padding: 14px 20px;
+border-radius: 8px;
+box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+font-size: 15px;
+line-height: 1.4;
+display: flex;
+align-items: center;
+gap: 12px;
+margin-top: 10px;
+}
+.global-status.error { background: #d32f2f; color: #fff; }
+.global-status.warning { background: #e65100; color: #fff; }
+.global-status.info { background: #1976d2; color: #fff; }
+#globalStatusText { pointer-events: auto; cursor: pointer; }
+#globalStatusClose {
+pointer-events: auto;
+background: none;
+border: none;
+color: inherit;
+font-size: 22px;
+cursor: pointer;
+padding: 0 6px;
+line-height: 1;
+outline: none;
+flex-shrink: 0;
+}
+#globalStatusClose:focus {
+box-shadow: 0 0 0 3px rgba(255,255,255,0.6);
+border-radius: 4px;
 }
 </style>
 </head>
@@ -334,6 +368,13 @@ background: #ffebee;
 <button class="action-btn action-btn--danger" data-action="clearDictionary" tabindex="0">Очистить словарь</button>
 <button class="close-btn" data-modal="dictModal" tabindex="0">Закрыть</button>
 </div>
+
+<!-- Глобальный статус: прямой потомок body, вне #mainInterface и #startScreen (п. 6) -->
+<div id="globalStatus" class="global-status hidden" role="alert" aria-live="assertive" aria-atomic="true">
+<span id="globalStatusText"></span>
+<button id="globalStatusClose" aria-label="Закрыть сообщение">×</button>
+</div>
+
 <input type="file" id="fileInput" accept=".txt,.html,.htm" class="visually-hidden" tabindex="-1">
 <input type="file" id="dictInput" accept=".txt" class="visually-hidden" tabindex="-1">
 <script>
@@ -361,7 +402,6 @@ console.error('Storage: ошибка загрузки', e);
 return defaultValue;
 }
 };
-
 function saveAllSettings() {
 const settings = {
 voiceURI: selectedVoiceURI,
@@ -372,7 +412,6 @@ theme: themeSelect.value
 Storage.set('settings', settings);
 updateStatus('Настройки сохранены', 'info');
 }
-
 function loadAllSettings() {
 const s = Storage.get('settings', {});
 if (s.voiceURI !== undefined) {
@@ -394,11 +433,9 @@ updateTextFontSize();
 updateStatus('Настройки загружены', 'info');
 }
 // ==================== КОНЕЦ STORAGE MANAGER ====================
-
 // ==================== СОХРАНЕНИЕ ПОЗИЦИИ ОЗВУЧКИ ====================
 const POSITION_HISTORY_KEY = 'tts_position_history';
 const MAX_HISTORY_ENTRIES = 20;
-
 function getFileHash(filename) {
 let hash = 0;
 for (let i = 0; i < filename.length; i++) {
@@ -407,7 +444,6 @@ hash = hash & hash;
 }
 return hash.toString(36);
 }
-
 function saveCurrentPosition() {
 if (currentMode !== 'file') return false;
 const fileInput = document.getElementById('fileInput');
@@ -427,7 +463,6 @@ filteredHistory.unshift(positionData);
 const trimmedHistory = filteredHistory.slice(0, MAX_HISTORY_ENTRIES);
 return Storage.set(POSITION_HISTORY_KEY, trimmedHistory);
 }
-
 function loadPositionForFile(filename) {
 if (!filename) return 0;
 const fileHash = getFileHash(filename);
@@ -438,7 +473,6 @@ return entry.fragmentIndex;
 }
 return 0;
 }
-
 function savePositionManually() {
 if (currentMode !== 'file') {
 updateStatus('Сохранение позиции доступно только для файлов', 'warning');
@@ -456,7 +490,6 @@ updateStatus('Не удалось сохранить позиции', 'error');
 }
 }
 // ==================== КОНЕЦ СОХРАНЕНИЯ ПОЗИЦИИ ====================
-
 const CONFIG = {
 MIN_SPEED: 0.05,
 MAX_SPEED: 2.0,
@@ -472,9 +505,20 @@ DEFAULT_MAIN_FRAGMENT_LENGTH: 200,
 STATUS_TIMEOUT: 5000,
 DOUBLE_TAP_DELAY: 400,
 SETTLE_MS: 150,
-MAX_WATCHDOG_MS: 30000
+// ===== Watchdog: двухфазная защита (п. 2, раздел «Конфиг») =====
+// Символов в секунду для русского языка при rate 1.0
+WATCHDOG_CPS_DEFAULT: 13,
+// Опциональная таблица cps по языкам; null — используется только DEFAULT
+WATCHDOG_CPS_BY_LANG: null,
+// Запас на запуск движка и сетевую задержку, мс
+WATCHDOG_BUFFER_MS: 12000,
+// Минимальный остаточный буфер после пересчёта safetyTimeout в onstart, мс
+WATCHDOG_MIN_SAFETY_BUFFER_MS: 2000,
+// Максимум ожидания onstart, мс
+WATCHDOG_START_TIMEOUT_MS: 12000,
+// Страховочный предел на полное зависание API: 15 минут, мс
+WATCHDOG_SAFETY_LIMIT_MS: 900000
 };
-
 const modalLastFocused = new WeakMap();
 let voices = [];
 let currentSpeed = 1.0;
@@ -490,12 +534,10 @@ let minFragmentLength = CONFIG.DEFAULT_MIN_FRAGMENT_LENGTH;
 let mainFragmentLength = CONFIG.DEFAULT_MAIN_FRAGMENT_LENGTH;
 let statusClearTimeout = null;
 let singleTapTimer = null;
-
 // ==================== ПРОВЕРКА ПОДДЕРЖКИ SPEECH SYNTHESIS ====================
 if (!window.speechSynthesis) {
 document.getElementById('noTTSMessage').classList.remove('hidden');
 }
-
 // ==================== SPEECH CONTROLLER ====================
 class SpeechController {
 constructor({ getVoice, getRate, getVolume, getLang }) {
@@ -509,56 +551,95 @@ this.token = 0;
 this.currentResolve = null;
 this.pendingSpeak = null;
 this.listeners = {};
-this.watchdogTimer = null;
-this.watchdogDeadline = 0;
-this.watchdogRemaining = 0;
 this._settleResolve = null;
 this._myToken = -1;
 this._currentUtterance = null;
-
+// --- Двухфазный watchdog: поля (раздел «Словарь терминов») ---
+this.startTimer = null;
+this.safetyTimer = null;
+this._started = false;
+this._speakStartTime = 0;
+this._hiddenAccumulator = 0;
+this._hideStartTime = null;
+this._startDeadline = 0;
+this._safetyDeadline = 0;
+this._startRemaining = 0;
+this._safetyRemaining = 0;
+this._safetyBaseMs = 0;
+this._savedToken = -1;
 if (this.synth) {
 this.synth.addEventListener('voiceschanged', () => {
 this.emit('voices');
 });
 }
-
+// --- visibilitychange: п. 4, таблица п. 4.6 ---
 document.addEventListener('visibilitychange', () => {
 if (document.hidden) {
-if (this.watchdogTimer) {
-clearTimeout(this.watchdogTimer);
-this.watchdogTimer = null;
-this.watchdogRemaining = Math.max(0, this.watchdogDeadline - Date.now());
+// 4.1 Hide
+if (this.startTimer) {
+this._startRemaining = Math.max(0, this._startDeadline - Date.now());
+clearTimeout(this.startTimer);
+this.startTimer = null;
+this._startDeadline = 0;
 }
+if (this.safetyTimer) {
+this._safetyRemaining = Math.max(0, this._safetyDeadline - Date.now());
+clearTimeout(this.safetyTimer);
+this.safetyTimer = null;
+this._safetyDeadline = 0;
+}
+this._savedToken = this._myToken;
+this._hideStartTime = Date.now();
 } else {
-if (this.state === 'speaking' && this.watchdogRemaining > 0) {
-const remaining = this.watchdogRemaining;
-this.watchdogDeadline = Date.now() + remaining;
-this.watchdogRemaining = 0;
-this.watchdogTimer = setTimeout(() => this._triggerWatchdog(), remaining);
+// 4.2 Show
+if (this._hideStartTime !== null) {
+this._hiddenAccumulator += Date.now() - this._hideStartTime;
+this._hideStartTime = null;
+}
+if (this.state !== 'speaking' || this._myToken !== this._savedToken) {
+this._startRemaining = 0;
+this._safetyRemaining = 0;
+return;
+}
+if (!this._started) {
+if (this._startRemaining > 0) {
+const remaining = this._startRemaining;
+this._startRemaining = 0;
+this._startDeadline = Date.now() + remaining;
+const token = this._myToken;
+this.startTimer = setTimeout(() => this._triggerWatchdog('start-timeout', token), remaining);
+} else if (this.startTimer === null) {
+this._triggerWatchdog('start-timeout', this._myToken);
+return;
+}
+}
+if (this._safetyRemaining > 0) {
+const remaining = this._safetyRemaining;
+this._safetyRemaining = 0;
+this._safetyDeadline = Date.now() + remaining;
+const token = this._myToken;
+this.safetyTimer = setTimeout(() => this._triggerWatchdog('safety-timeout', token), remaining);
 }
 }
 });
 }
-
 on(event, handler) {
 if (!this.listeners[event]) this.listeners[event] = [];
 this.listeners[event].push(handler);
 }
-
 emit(event, data) {
 (this.listeners[event] || []).forEach(h => h(data));
 }
-
 getVoices() {
 return this.synth ? this.synth.getVoices() : [];
 }
-
 getState() {
 return this.state;
 }
-
+// warmup: п. 5 — защита по state
 warmup() {
 if (!this.synth) return;
+if (this.state !== 'idle') return;
 try {
 const warmup = new SpeechSynthesisUtterance(' ');
 warmup.volume = 0;
@@ -571,7 +652,6 @@ this.synth.cancel();
 console.warn('Warmup error:', e);
 }
 }
-
 speak(text) {
 return new Promise((resolve) => {
 if (!this.synth) {
@@ -579,7 +659,6 @@ resolve({ ok: false, reason: 'error', error: 'no-speech-synthesis' });
 return;
 }
 const myToken = ++this.token;
-
 if (this.state === 'canceling' || this.state === 'settling') {
 if (this.pendingSpeak) {
 this.pendingSpeak.resolve({ ok: false, reason: 'superseded' });
@@ -587,17 +666,25 @@ this.pendingSpeak.resolve({ ok: false, reason: 'superseded' });
 this.pendingSpeak = { text, resolve, myToken };
 return;
 }
-
 this._doSpeak(text, myToken, resolve);
 });
 }
-
+// _doSpeak: п. 7 — двухфазный watchdog, скрытая вкладка
 async _doSpeak(text, myToken, resolve) {
 this.state = 'speaking';
 this.currentResolve = resolve;
 this._myToken = myToken;
+this._started = false;
+this._speakStartTime = Date.now();
+this._hiddenAccumulator = 0;
+this._savedToken = -1;
+if (document.hidden) {
+this._hideStartTime = Date.now();
+this._savedToken = myToken;
+} else {
+this._hideStartTime = null;
+}
 this.emit('statechange', { state: this.state });
-
 const utterance = new SpeechSynthesisUtterance(text);
 const voice = this.getVoice();
 if (voice) {
@@ -609,20 +696,69 @@ utterance.lang = this.getLang() || navigator.language || 'ru-RU';
 utterance.rate = this.getRate();
 utterance.volume = this.getVolume();
 utterance.pitch = 1.0;
-
 const rate = utterance.rate || 1.0;
-const timeout = Math.min(3000 + (80 * text.length) / rate * 1.5, CONFIG.MAX_WATCHDOG_MS);
-this.watchdogDeadline = Date.now() + timeout;
-this.watchdogRemaining = 0;
-
+const length = text.length;
+const cps = CONFIG.WATCHDOG_CPS_DEFAULT;
+// Расчёт базового времени произнесения и страховочного таймера
+this._safetyBaseMs = (length / (cps * rate)) * 1000;
+const safetyMs = Math.min(this._safetyBaseMs + CONFIG.WATCHDOG_BUFFER_MS, CONFIG.WATCHDOG_SAFETY_LIMIT_MS);
+const startMs = CONFIG.WATCHDOG_START_TIMEOUT_MS;
+// Инвариант: очистка перед установкой новых таймеров
+this._clearWatchdog();
 this._currentUtterance = utterance;
-this.watchdogTimer = setTimeout(() => this._triggerWatchdog(), timeout);
-
+if (!document.hidden) {
+// Вкладка видима: активные таймеры
+this._startDeadline = Date.now() + startMs;
+this.startTimer = setTimeout(() => this._triggerWatchdog('start-timeout', myToken), startMs);
+this._safetyDeadline = Date.now() + safetyMs;
+this.safetyTimer = setTimeout(() => this._triggerWatchdog('safety-timeout', myToken), safetyMs);
+} else {
+// Вкладка скрыта: длительности в remaining, таймеры не активны (п. 4.3)
+this._startRemaining = startMs;
+this._safetyRemaining = safetyMs;
+this._startDeadline = 0;
+this._safetyDeadline = 0;
+}
 utterance.onstart = () => {
 if (this._myToken !== myToken) return;
+if (this.state !== 'speaking') return;
+if (this._started) return;
+this._started = true;
+// Очистка / обнуление startTimer (п. 2, п. 4.4)
+if (!document.hidden) {
+if (this.startTimer) {
+clearTimeout(this.startTimer);
+this.startTimer = null;
+}
+this._startDeadline = 0;
+this._startRemaining = 0;
+} else {
+this._startRemaining = 0;
+this._startDeadline = 0;
+if (this.startTimer) {
+clearTimeout(this.startTimer);
+this.startTimer = null;
+}
+}
+// Пересчёт safetyTimeout (п. 2)
+const hiddenNow = (this._hideStartTime !== null) ? (Date.now() - this._hideStartTime) : 0;
+const elapsed = Date.now() - this._speakStartTime - this._hiddenAccumulator - hiddenNow;
+const shortBuffer = Math.max(CONFIG.WATCHDOG_MIN_SAFETY_BUFFER_MS, CONFIG.WATCHDOG_BUFFER_MS - elapsed);
+const newSafetyMs = Math.min(this._safetyBaseMs + shortBuffer, CONFIG.WATCHDOG_SAFETY_LIMIT_MS);
+if (!document.hidden) {
+if (this.safetyTimer) {
+clearTimeout(this.safetyTimer);
+this.safetyTimer = null;
+}
+this._safetyDeadline = Date.now() + newSafetyMs;
+this._safetyRemaining = 0;
+this.safetyTimer = setTimeout(() => this._triggerWatchdog('safety-timeout', myToken), newSafetyMs);
+} else {
+this._safetyRemaining = newSafetyMs;
+this._safetyDeadline = 0;
+}
 this.emit('start', { token: myToken });
 };
-
 utterance.onend = () => {
 if (this._myToken !== myToken) return;
 this._clearWatchdog();
@@ -633,6 +769,9 @@ this._settleResolve = null;
 }
 return;
 }
+if (this.state === 'settling') {
+return;
+}
 this.state = 'idle';
 this.emit('statechange', { state: this.state });
 if (this.currentResolve) {
@@ -640,17 +779,17 @@ this.currentResolve({ ok: true });
 this.currentResolve = null;
 }
 };
-
 utterance.onerror = (event) => {
 if (this._myToken !== myToken) return;
 this._clearWatchdog();
-if (event.error === 'interrupted' || event.error === 'canceled') {
-if (this.state === 'canceling') {
+if ((event.error === 'interrupted' || event.error === 'canceled') && this.state === 'canceling') {
 if (this._settleResolve) {
 this._settleResolve();
 this._settleResolve = null;
 }
+return;
 }
+if ((event.error === 'interrupted' || event.error === 'canceled') && this.state === 'settling') {
 return;
 }
 this.state = 'idle';
@@ -660,87 +799,88 @@ this.currentResolve({ ok: false, reason: 'error', error: event.error });
 this.currentResolve = null;
 }
 };
-
 this.synth.speak(utterance);
 }
-
+// stop: п. 5, п. 7 — безусловный сброс до раннего выхода
 stop() {
 if (this.pendingSpeak) {
 this.pendingSpeak.resolve({ ok: false, reason: 'cancelled' });
 this.pendingSpeak = null;
 }
+this._started = false;
+this._hiddenAccumulator = 0;
+this._hideStartTime = null;
+this._savedToken = -1;
+this._clearWatchdog();
 if (this.state === 'idle') return;
-
 if (this.state === 'speaking') {
 this.state = 'canceling';
 this.emit('statechange', { state: this.state });
-
 const myToken = this._myToken;
 this.token++;
-
 if (this.currentResolve) {
 this.currentResolve({ ok: false, reason: 'cancelled' });
 this.currentResolve = null;
 }
-
 this.synth.cancel();
-this._clearWatchdog();
 this._settle(myToken);
 }
 }
-
 async _settle(oldToken) {
 const settlePromise = new Promise((resolve) => {
 this._settleResolve = resolve;
 });
 const delayPromise = new Promise((resolve) => setTimeout(resolve, CONFIG.SETTLE_MS));
-
 await Promise.race([settlePromise, delayPromise]);
 this._settleResolve = null;
-
 if (this.state !== 'canceling') return;
-
 this.state = 'settling';
 this.emit('statechange', { state: this.state });
-
 await new Promise(r => setTimeout(r, 0));
-
 if (this.state !== 'settling') return;
-
 this.state = 'idle';
 this.emit('statechange', { state: this.state });
-
 if (this.pendingSpeak) {
 const pending = this.pendingSpeak;
 this.pendingSpeak = null;
 this._doSpeak(pending.text, ++this.token, pending.resolve);
 }
 }
-
-_triggerWatchdog() {
+// _triggerWatchdog: п. 3 — безопасный порядок, сигнатура с токеном
+_triggerWatchdog(reason, token) {
+if (this._myToken !== token) return;
 if (this.state !== 'speaking') return;
-this.watchdogTimer = null;
+this._clearWatchdog();
 this.state = 'canceling';
-this.synth.cancel();
-this.token++;
+this.emit('statechange', { state: this.state });
+this._started = false;
 if (this.currentResolve) {
-this.currentResolve({ ok: false, reason: 'watchdog' });
+this.currentResolve({ ok: false, reason: reason, error: reason });
 this.currentResolve = null;
 }
-this.state = 'idle';
-this.emit('statechange', { state: this.state });
+if (this.pendingSpeak) {
+this.pendingSpeak.resolve({ ok: false, reason: 'watchdog' });
+this.pendingSpeak = null;
+}
+this.synth.cancel();
 this._settle(this._myToken);
 }
-
+// _clearWatchdog: п. 5 — два таймера, четыре поля; не трогает _started
 _clearWatchdog() {
-if (this.watchdogTimer) {
-clearTimeout(this.watchdogTimer);
-this.watchdogTimer = null;
+if (this.startTimer) {
+clearTimeout(this.startTimer);
+this.startTimer = null;
 }
-this.watchdogRemaining = 0;
+if (this.safetyTimer) {
+clearTimeout(this.safetyTimer);
+this.safetyTimer = null;
+}
+this._startRemaining = 0;
+this._safetyRemaining = 0;
+this._startDeadline = 0;
+this._safetyDeadline = 0;
 }
 }
-
 // ==================== PLAYER ====================
 class Player {
 constructor(controller) {
@@ -755,16 +895,13 @@ this.userScrolled = false;
 this.myGen = 0;
 this.listeners = {};
 }
-
 on(event, handler) {
 if (!this.listeners[event]) this.listeners[event] = [];
 this.listeners[event].push(handler);
 }
-
 emit(event, data) {
 (this.listeners[event] || []).forEach(h => h(data));
 }
-
 setFragments(list) {
 this.fragments = list;
 this.subFragments = null;
@@ -776,14 +913,12 @@ this.currentFragmentIndex = 0;
 }
 this.emit('fragmentchange', this.currentFragmentIndex);
 }
-
 hasNext() {
 if (this.subFragments && this.lastMainIndexForSub === this.currentFragmentIndex) {
 return this.currentSubIndex < this.subFragments.length - 1;
 }
 return this.currentFragmentIndex < this.fragments.length - 1;
 }
-
 advance() {
 if (this.subFragments && this.lastMainIndexForSub === this.currentFragmentIndex) {
 if (this.currentSubIndex + 1 < this.subFragments.length) {
@@ -803,7 +938,6 @@ this.currentFragmentIndex++;
 this.userScrolled = false;
 this.emit('fragmentchange', this.currentFragmentIndex);
 }
-
 getCurrentText() {
 let text;
 if (this.subFragments && this.lastMainIndexForSub === this.currentFragmentIndex) {
@@ -816,7 +950,6 @@ text = applyReplacements(text);
 }
 return text;
 }
-
 ensureSubFragments() {
 if (this.fragments.length === 0) return false;
 if (this.lastMainIndexForSub !== this.currentFragmentIndex || this.subFragments === null) {
@@ -832,7 +965,6 @@ this.currentSubIndex = 0;
 }
 return this.subFragments !== null;
 }
-
 play() {
 if (this.isPlaying) {
 this.myGen++;
@@ -845,7 +977,6 @@ this.myGen++;
 this.emit('statechange', { playing: true });
 this._startLoop(this.myGen);
 }
-
 pause() {
 if (!this.isPlaying) return;
 this.isPlaying = false;
@@ -853,14 +984,12 @@ this.myGen++;
 this.controller.stop();
 this.emit('statechange', { playing: false });
 }
-
 stop() {
 this.isPlaying = false;
 this.myGen++;
 this.controller.stop();
 this.emit('statechange', { playing: false });
 }
-
 seek(fragmentIndex, subIndex = 0) {
 this.currentFragmentIndex = Math.max(0, Math.min(this.fragments.length - 1, fragmentIndex));
 this.subFragments = null;
@@ -874,7 +1003,6 @@ if (this.isPlaying) {
 this._startLoop(this.myGen);
 }
 }
-
 nextFragment() {
 if (this.currentFragmentIndex < this.fragments.length - 1) {
 this.currentFragmentIndex++;
@@ -890,7 +1018,6 @@ this._startLoop(this.myGen);
 }
 }
 }
-
 prevFragment() {
 if (this.currentFragmentIndex > 0) {
 this.currentFragmentIndex--;
@@ -906,7 +1033,6 @@ this._startLoop(this.myGen);
 }
 }
 }
-
 nextSub() {
 this.ensureSubFragments();
 if (!this.subFragments) return;
@@ -920,7 +1046,6 @@ this._startLoop(this.myGen);
 }
 }
 }
-
 prevSub() {
 this.ensureSubFragments();
 if (!this.subFragments) return;
@@ -934,7 +1059,7 @@ this._startLoop(this.myGen);
 }
 }
 }
-
+// _startLoop: п. 7 — без advance при watchdog, нормализация, сохранение позиции
 async _startLoop(gen) {
 if (!this.controller.synth) {
 this.isPlaying = false;
@@ -951,12 +1076,19 @@ continue;
 }
 const r = await this.controller.speak(text);
 if (this.myGen !== gen) return;
-
 if (!r.ok) {
 if (r.reason === 'cancelled' || r.reason === 'superseded') return;
-if (r.reason === 'watchdog') {
-this.advance();
-continue;
+if (r.reason === 'start-timeout' || r.reason === 'safety-timeout' || r.reason === 'watchdog') {
+this.isPlaying = false;
+this.emit('statechange', { playing: false });
+// Нормализация индекса (п. 3, критерий 24)
+this.currentFragmentIndex = Math.max(0, Math.min(this.fragments.length - 1, this.currentFragmentIndex));
+// Сохранение позиции для файлов
+if (currentMode === 'file' && this.fragments.length > 0) {
+saveCurrentPosition();
+}
+this.emit('error', r.reason);
+return;
 }
 if (r.reason === 'error') {
 this.isPlaying = false;
@@ -974,7 +1106,6 @@ this.emit('done');
 }
 }
 }
-
 const controller = new SpeechController({
 getVoice: () => selectedVoiceURI ? voices.find(v => v.voiceURI === selectedVoiceURI) : null,
 getRate: () => currentSpeed,
@@ -982,19 +1113,16 @@ getVolume: () => currentVolume,
 getLang: () => navigator.language || 'ru-RU'
 });
 const player = new Player(controller);
-
 // ==================== УПРАВЛЕНИЕ РАМКОЙ ФОКУСА ====================
 const textContentEl = document.getElementById('textContent');
 let focusTimer = null;
 const FOCUS_DIM_DELAY = 3000;
-
 function clearFocusTimer() {
 if (focusTimer) {
 clearTimeout(focusTimer);
 focusTimer = null;
 }
 }
-
 function setFocusClass() {
 clearFocusTimer();
 textContentEl.classList.remove('dim-focus');
@@ -1005,18 +1133,15 @@ textContentEl.classList.add('dim-focus');
 focusTimer = null;
 }, FOCUS_DIM_DELAY);
 }
-
 function removeFocusClasses() {
 clearFocusTimer();
 textContentEl.classList.remove('has-focus', 'dim-focus');
 }
-
 if (textContentEl) {
 textContentEl.addEventListener('focus', setFocusClass);
 textContentEl.addEventListener('blur', removeFocusClasses);
 }
 // ==================== КОНЕЦ УПРАВЛЕНИЯ РАМКОЙ ====================
-
 const startScreen = document.getElementById('startScreen');
 const mainInterface = document.getElementById('mainInterface');
 const textContent = document.getElementById('textContent');
@@ -1045,7 +1170,6 @@ const settingsScreen = document.getElementById('settingsScreen');
 const mainFragmentLengthInput = document.getElementById('mainFragmentLength');
 const currentFragmentNumberInput = document.getElementById('currentFragmentNumber');
 const fragmentRangeInfo = document.getElementById('fragmentRangeInfo');
-
 function initAccessibility() {
 document.getElementById('speedDown').setAttribute('aria-label', 'Уменьшить скорость речи. Клавиши: запятая, меньше');
 document.getElementById('speedUp').setAttribute('aria-label', 'Увеличить скорость речи. Клавиши: точка, больше');
@@ -1060,7 +1184,6 @@ document.getElementById('menuToggle').setAttribute('aria-label', 'Открыть
 statusContainer.setAttribute('aria-live', 'polite');
 document.querySelectorAll('.modal').forEach(setupModalAccessibility);
 }
-
 function setupModalAccessibility(modal) {
 modal.setAttribute('role', 'dialog');
 modal.setAttribute('aria-modal', 'true');
@@ -1084,7 +1207,6 @@ first.focus();
 }
 });
 }
-
 function openModal(modalId) {
 const modal = document.getElementById(modalId);
 modal.classList.remove('hidden');
@@ -1100,7 +1222,6 @@ content.focus();
 }
 }
 }
-
 function closeModal(modalId) {
 const modal = document.getElementById(modalId);
 modal.classList.add('hidden');
@@ -1112,14 +1233,12 @@ lastFocused.focus();
 }
 modalLastFocused.delete(modal);
 }
-
 function updateTextFontSize() {
 const size = currentFontSize + 'px';
 textContent.style.fontSize = size;
 textInput.style.fontSize = size;
 document.getElementById('fontValue').textContent = size;
 }
-
 function adjustVolume(delta) {
 const minH = CONFIG.MIN_VOLUME * 10;
 const maxH = CONFIG.MAX_VOLUME * 10;
@@ -1133,7 +1252,6 @@ volumeSlider.value = currentVolume;
 volumeValue.textContent = Math.round(currentVolume * 100) + '%';
 updateStatus(`Громкость: ${Math.round(currentVolume * 100)}%`, 'info');
 }
-
 function adjustSpeed(delta) {
 const stepsTotal = Math.round((CONFIG.MAX_SPEED - CONFIG.MIN_SPEED) / CONFIG.SPEED_STEP);
 let steps = Math.round((currentSpeed - CONFIG.MIN_SPEED) / CONFIG.SPEED_STEP);
@@ -1144,7 +1262,6 @@ currentSpeed = Math.round(newSpeed * 100) / 100;
 updateSpeed();
 updateStatus(`Скорость: ${currentSpeed.toFixed(2)}x`, 'info');
 }
-
 function adjustFontSize(delta) {
 const newSize = currentFontSize + delta * CONFIG.FONT_STEP;
 if (newSize >= CONFIG.MIN_FONT_SIZE && newSize <= CONFIG.MAX_FONT_SIZE) {
@@ -1153,7 +1270,6 @@ updateTextFontSize();
 updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
 }
 }
-
 function scrollTextByLine(direction) {
 if (textContent.classList.contains('hidden')) return;
 const container = textContent.parentElement;
@@ -1165,7 +1281,6 @@ lineHeight = currentFontSize * 1.6;
 container.scrollTop += direction * lineHeight;
 player.userScrolled = true;
 }
-
 function toggleFullscreen() {
 const controls = document.querySelector('.control-row');
 const status = document.getElementById('status');
@@ -1184,7 +1299,6 @@ updateStatus('Полноэкранный режим включён (ESC для �
 removeFocusClasses();
 }
 }
-
 document.getElementById('fontSmaller').addEventListener('click', () => {
 adjustFontSize(-1);
 });
@@ -1192,14 +1306,12 @@ document.getElementById('fontLarger').addEventListener('click', () => {
 adjustFontSize(+1);
 });
 updateTextFontSize();
-
 function handleMenuKeypress(event, callback) {
 if (event.key === ' ' || event.key === 'Enter') {
 event.preventDefault();
 callback();
 }
 }
-
 function extractTextFromHtml(html) {
 const parser = new DOMParser();
 const doc = parser.parseFromString(html, 'text/html');
@@ -1261,10 +1373,9 @@ lines.push('');
 }
 flush();
 let result = lines.join('\n');
-result = result.replace(/\n{3,}/g, '\n\n').trim();
+result = result.replace(/\n{3,}/g, '\n').trim();
 return result;
 }
-
 function navigateSubFragment(direction) {
 if (player.fragments.length === 0) return;
 if (direction === 'prev') {
@@ -1273,7 +1384,6 @@ player.prevSub();
 player.nextSub();
 }
 }
-
 // ==================== ОБРАБОТЧИК КЛАВИАТУРЫ ====================
 document.addEventListener('keydown', function(event) {
 if (event.ctrlKey || event.metaKey) return;
@@ -1321,7 +1431,6 @@ toggleFullscreen();
 return;
 }
 }
-
 if (event.altKey) {
 const key = event.key.toLowerCase();
 if (key === '+' || key === '=') {
@@ -1382,7 +1491,6 @@ return;
 }
 if (!startScreen.classList.contains('hidden')) return;
 if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') return;
-
 switch (event.code) {
 case 'KeyK':
 event.preventDefault();
@@ -1445,7 +1553,6 @@ adjustVolume(+1);
 return;
 }
 });
-
 function isTapInCenter(clientX, clientY) {
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -1455,7 +1562,6 @@ const topThird = height / 3;
 const bottomThird = 2 * height / 3;
 return (clientX >= leftThird && clientX <= rightThird && clientY >= topThird && clientY <= bottomThird);
 }
-
 function handleCenterTap(event) {
 if (textContent.classList.contains('hidden')) return;
 if (!isTapInCenter(event.clientX, event.clientY)) return;
@@ -1478,15 +1584,12 @@ singleTapTimer = null;
 }, CONFIG.DOUBLE_TAP_DELAY);
 }
 }
-
 if (textContent) {
 textContent.addEventListener('click', handleCenterTap);
 }
-
 function showInfo() {
 openModal('infoModal');
 }
-
 function loadVoicesWithRetry(maxAttempts = 12) {
 let attempt = 0;
 const tryLoad = () => {
@@ -1501,16 +1604,17 @@ setTimeout(tryLoad, 150 * attempt);
 };
 tryLoad();
 }
-
+// showVoiceSelect: п. 5 — дополнительная защита warmup по player.isPlaying
 function showVoiceSelect() {
+if (!player.isPlaying) {
 controller.warmup();
+}
 loadVoicesForModal();
 if (voices.length === 0) {
 loadVoicesWithRetry();
 }
 openModal('voiceModal');
 }
-
 function updateVoiceHelpVisibility() {
 if (!voiceHelp) return;
 if (voices.length === 0) {
@@ -1519,19 +1623,16 @@ voiceHelp.style.display = 'block';
 voiceHelp.style.display = 'none';
 }
 }
-
 function openFile() {
 const fileInput = document.getElementById('fileInput');
 fileInput.value = '';
 setTimeout(() => fileInput.click(), 100);
 }
-
 function loadDictionary() {
 const dictInput = document.getElementById('dictInput');
 dictInput.value = '';
 setTimeout(() => dictInput.click(), 100);
 }
-
 function startTextInput() {
 startScreen.classList.add('hidden');
 mainInterface.classList.remove('hidden');
@@ -1543,11 +1644,9 @@ player.setFragments([]);
 updateStatus('Режим ввода текста. Введите или вставьте текст.');
 setTimeout(() => textInput.focus(), 100);
 }
-
 function closeApp() {
 if (confirm('Закрыть приложение?')) window.close();
 }
-
 function createOverlay() {
 const overlay = document.createElement('div');
 overlay.className = 'overlay';
@@ -1557,7 +1656,6 @@ overlay.remove();
 };
 return overlay;
 }
-
 function showStartScreen() {
 if (player.isPlaying) {
 player.pause();
@@ -1576,7 +1674,6 @@ if (firstVisibleMenuItem) firstVisibleMenuItem.focus();
 }
 }, 100);
 }
-
 function updateResumeTextVisibility() {
 if (currentMode) {
 resumeTextBtn.classList.remove('hidden');
@@ -1584,7 +1681,6 @@ resumeTextBtn.classList.remove('hidden');
 resumeTextBtn.classList.add('hidden');
 }
 }
-
 function resumeText() {
 startScreen.classList.add('hidden');
 mainInterface.classList.remove('hidden');
@@ -1600,18 +1696,15 @@ setTimeout(() => textInput.focus(), 100);
 }
 updateStatus('Возвращение к тексту');
 }
-
 function escapeRegExp(str) {
 return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
 function applyReplacements(text) {
 if (replacementDict.size === 0) return text;
 const pattern = replacementDictSortedKeys.map(k => escapeRegExp(k)).join('|');
 const regex = new RegExp(pattern, 'g');
 return text.replace(regex, (match) => replacementDict.get(match));
 }
-
 function clearDictionary() {
 replacementDict = new Map();
 replacementDictSortedKeys = [];
@@ -1621,7 +1714,6 @@ dictStatus.className = 'status';
 dictStatus.textContent = '';
 updateStatus('Словарь замен очищен', 'info');
 }
-
 function handleDictFile(file) {
 if (!file) return;
 openModal('dictModal');
@@ -1726,16 +1818,14 @@ dictErrors.textContent = '';
 };
 reader.readAsText(file, 'UTF-8');
 }
-
 function normalizeText(text) {
 if (typeof text !== 'string') return '';
 return text
 .replace(/\r\n/g, '\n')
 .replace(/\r/g, '\n')
 .replace(/\v/g, '\n')
-.replace(/\n{3,}/g, '\n\n');
+.replace(/\n{3,}/g, '\n');
 }
-
 function splitIntoFragments(text) {
 if (!text || typeof text !== 'string') return [];
 text = normalizeText(text);
@@ -1751,7 +1841,6 @@ function isLineBreak(ch) { return ch === '\n'; }
 function isDigit(ch) { return ch >= '0' && ch <= '9'; }
 const LOWER_RE = /\p{Ll}/u;
 function isLower(ch) { return ch !== undefined && ch !== '' && LOWER_RE.test(ch); }
-
 function matchSeparatorAt(i) {
 const c = text[i];
 if (isLineBreak(c)) {
@@ -1800,7 +1889,6 @@ return { priority: 7, end: j };
 if (c === ';') return { priority: 8, end: i + 1 };
 return null;
 }
-
 while (currentIndex < textLength) {
 const minEnd = currentIndex + minLength;
 if (minEnd >= textLength) {
@@ -1853,7 +1941,6 @@ currentIndex = fragmentEnd;
 }
 return fragments;
 }
-
 function handleFileSelect(file) {
 if (!file) return;
 const reader = new FileReader();
@@ -1893,7 +1980,6 @@ updateStatus('Ошибка чтения файла: ' + error.message, 'error');
 reader.onerror = () => updateStatus('Ошибка при чтении файла', 'error');
 reader.readAsText(file, 'UTF-8');
 }
-
 function updateTextDisplay() {
 if (player.fragments.length === 0) return;
 textContent.replaceChildren();
@@ -1916,7 +2002,6 @@ currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 }
 }
-
 function splitIntoSubFragments(text) {
 if (!text) return [];
 text = normalizeText(text);
@@ -1971,8 +2056,20 @@ const tail = text.substring(start).trim();
 if (tail) parts.push(tail);
 return parts;
 }
-
+// ==================== updateStatus: п. 6, п. 7 ====================
+// type === 'error' → только #globalStatus; #status и statusClearTimeout не трогаются
+// иначе → прежнее поведение с #status
 function updateStatus(message, type = 'info') {
+if (type === 'error') {
+const globalStatus = document.getElementById('globalStatus');
+const globalStatusText = document.getElementById('globalStatusText');
+if (globalStatus && globalStatusText) {
+globalStatusText.textContent = message;
+globalStatus.classList.remove('hidden', 'warning', 'info');
+globalStatus.classList.add('error');
+}
+return;
+}
 statusContainer.textContent = message;
 statusContainer.className = `status ${type}`;
 if (!message || message.trim() === '') {
@@ -1984,7 +2081,6 @@ if (statusClearTimeout) {
 clearTimeout(statusClearTimeout);
 statusClearTimeout = null;
 }
-if (type !== 'error') {
 statusClearTimeout = setTimeout(() => {
 if (statusContainer.textContent === message) {
 statusContainer.textContent = '';
@@ -1993,14 +2089,11 @@ statusContainer.classList.add('hidden');
 }
 }, CONFIG.STATUS_TIMEOUT);
 }
-}
-
 function updateSpeed() {
 speedValue.textContent = currentSpeed.toFixed(2) + 'x';
 speedDownBtn.disabled = currentSpeed <= CONFIG.MIN_SPEED;
 speedUpBtn.disabled = currentSpeed >= CONFIG.MAX_SPEED;
 }
-
 speedDownBtn.addEventListener('click', () => {
 adjustSpeed(-1);
 });
@@ -2019,7 +2112,6 @@ player.prevSub();
 nextSubFragmentBtn.addEventListener('click', () => {
 player.nextSub();
 });
-
 playPauseBtn.addEventListener('click', () => {
 if (player.isPlaying) {
 player.pause();
@@ -2044,7 +2136,6 @@ updateTextDisplay();
 player.play();
 }
 });
-
 function loadVoicesForModal() {
 voices = controller.getVoices();
 voiceSelect.innerHTML = '';
@@ -2120,7 +2211,6 @@ selectedVoiceURI = null;
 voiceInfo.textContent = `Доступно голосов: ${voices.length}`;
 updateVoiceHelpVisibility();
 }
-
 voiceSelect.addEventListener('change', () => {
 const idx = parseInt(voiceSelect.value, 10);
 if (!isNaN(idx) && voices[idx]) {
@@ -2128,7 +2218,6 @@ selectedVoiceURI = voices[idx].voiceURI;
 saveAllSettings();
 }
 });
-
 controller.on('voices', () => {
 voices = controller.getVoices();
 const voiceModal = document.getElementById('voiceModal');
@@ -2142,9 +2231,7 @@ if (idx !== -1) voiceSelect.value = idx;
 loadVoicesForModal();
 }
 });
-
 menuToggleBtn.addEventListener('click', showStartScreen);
-
 function showSettings() {
 startScreen.classList.add('hidden');
 mainInterface.classList.add('hidden');
@@ -2158,12 +2245,10 @@ fragmentRangeInfo.textContent = "Нет загруженного текста";
 }
 document.getElementById('applySettingsBtn').focus();
 }
-
 function hideSettings() {
 settingsScreen.classList.add('hidden');
 showStartScreen();
 }
-
 function applySettingsAndClose() {
 const input = document.getElementById('minFragmentLength');
 if (input && input.value !== '') {
@@ -2197,10 +2282,8 @@ saveAllSettings();
 updateStatus(`Настройки применены: мин.фрагмент — ${minFragmentLength}, окно поиска — ${mainFragmentLength}`, 'info');
 hideSettings();
 }
-
 updateSpeed();
 initAccessibility();
-
 player.on('fragmentchange', () => {
 updateTextDisplay();
 updateStatus(`Фрагмент ${player.currentFragmentIndex + 1} из ${player.fragments.length}`);
@@ -2211,19 +2294,36 @@ updateTextDisplay();
 player.on('statechange', (data) => {
 playPauseBtn.textContent = data.playing ? '⏸' : '▶';
 });
+// ==================== Маппинг ошибок: п. 6.1 ====================
 player.on('error', (error) => {
-updateStatus('Ошибка воспроизведения: ' + error, 'error');
+let message;
+if (error === 'start-timeout') {
+message = 'Не удалось запустить озвучку (голос не ответил за 12 с). Проверьте голос и повторите.';
+} else if (error === 'safety-timeout') {
+if (currentMode === 'file') {
+message = 'Озвучка остановлена по страховочному таймеру. Позиция сохранена.';
+} else {
+message = 'Озвучка остановлена по страховочному таймеру.';
+}
+} else if (error === 'watchdog') {
+if (currentMode === 'file') {
+message = 'Озвучка остановлена watchdog-таймером. Позиция сохранена.';
+} else {
+message = 'Озвучка остановлена watchdog-таймером.';
+}
+} else {
+message = 'Ошибка воспроизведения: ' + error;
+}
+updateStatus(message, 'error');
 });
 player.on('done', () => {
 updateStatus('Озвучка завершена', 'info');
 });
-
 window.addEventListener('load', () => {
 loadAllSettings();
 const firstMenuItem = document.querySelector('.menu-item:not(.hidden)');
 if (firstMenuItem) firstMenuItem.focus();
 });
-
 document.addEventListener('DOMContentLoaded', () => {
 resumeTextBtn.addEventListener('click', resumeText);
 document.getElementById('menuInfo').addEventListener('click', showInfo);
@@ -2236,11 +2336,13 @@ document.getElementById('menuSettings').addEventListener('click', showSettings);
 document.getElementById('menuExit').addEventListener('click', closeApp);
 document.getElementById('fileInput').addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
 document.getElementById('dictInput').addEventListener('change', (e) => handleDictFile(e.target.files[0]));
-
 const refreshVoicesBtn = document.getElementById('refreshVoicesBtn');
 if (refreshVoicesBtn) {
+// refreshVoicesBtn: п. 5 — дополнительная защита warmup по player.isPlaying
 refreshVoicesBtn.addEventListener('click', () => {
+if (!player.isPlaying) {
 controller.warmup();
+}
 loadVoicesForModal();
 if (voices.length === 0) {
 loadVoicesWithRetry();
@@ -2270,15 +2372,30 @@ document.documentElement.setAttribute('data-theme', e.target.value);
 saveAllSettings();
 });
 updateStatus('');
-
+// ==================== Закрытие #globalStatus: п. 6 ====================
+// Обработчик навешивается один раз при инициализации
+const globalStatusClose = document.getElementById('globalStatusClose');
+const globalStatusText = document.getElementById('globalStatusText');
+const globalStatusEl = document.getElementById('globalStatus');
+if (globalStatusClose && globalStatusEl) {
+globalStatusClose.addEventListener('click', () => {
+globalStatusEl.classList.add('hidden');
+});
+}
+if (globalStatusText && globalStatusEl) {
+globalStatusText.addEventListener('click', () => {
+globalStatusEl.classList.add('hidden');
+});
+}
+// ==================== Навигация Tab ====================
 document.addEventListener('keydown', function(e) {
 if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return;
 const controlRow = document.querySelector('.control-row');
 const status = document.getElementById('status');
-const textInput = document.getElementById('textInput');
-const textContent = document.getElementById('textContent');
-const activeIsText = (document.activeElement === textInput && !textInput.classList.contains('hidden')) ||
-(document.activeElement === textContent && !textContent.classList.contains('hidden'));
+const textInputEl = document.getElementById('textInput');
+const textContentEl2 = document.getElementById('textContent');
+const activeIsText = (document.activeElement === textInputEl && !textInputEl.classList.contains('hidden')) ||
+(document.activeElement === textContentEl2 && !textContentEl2.classList.contains('hidden'));
 if (activeIsText) {
 e.preventDefault();
 if (controlRow && controlRow.classList.contains('hidden')) {
@@ -2307,10 +2424,10 @@ const firstControl = focusableControls[0];
 const lastControl = focusableControls[focusableControls.length - 1];
 const activeElement = document.activeElement;
 let activeTextElement = null;
-if (!textInput.classList.contains('hidden')) {
-activeTextElement = textInput;
-} else if (!textContent.classList.contains('hidden')) {
-activeTextElement = textContent;
+if (!textInputEl.classList.contains('hidden')) {
+activeTextElement = textInputEl;
+} else if (!textContentEl2.classList.contains('hidden')) {
+activeTextElement = textContentEl2;
 }
 if (activeElement === firstControl && e.shiftKey) {
 e.preventDefault();
