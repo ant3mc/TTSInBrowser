@@ -172,7 +172,6 @@ border: 1px solid #d32f2f;
 border-radius: 8px;
 background: #ffebee;
 }
-/* ===== Глобальный статус (п. 6) ===== */
 .global-status {
 position: fixed;
 z-index: 10000;
@@ -376,7 +375,6 @@ border-radius: 4px;
 <button class="action-btn action-btn--danger" data-action="clearDictionary" tabindex="0">Очистить словарь</button>
 <button class="close-btn" data-modal="dictModal" tabindex="0">Закрыть</button>
 </div>
-<!-- Глобальный статус: прямой потомок body, вне #mainInterface и #startScreen (п. 6) -->
 <div id="globalStatus" class="global-status hidden" role="alert" aria-live="assertive" aria-atomic="true">
 <span id="globalStatusText"></span>
 <button id="globalStatusClose" aria-label="Закрыть сообщение">×</button>
@@ -384,7 +382,6 @@ border-radius: 4px;
 <input type="file" id="fileInput" accept=".txt,.html,.htm" class="visually-hidden" tabindex="-1">
 <input type="file" id="dictInput" accept=".txt" class="visually-hidden" tabindex="-1">
 <script>
-// ==================== УПРОЩЁННЫЙ STORAGE MANAGER ====================
 const Storage = {
 set(key, value) {
 try {
@@ -438,8 +435,6 @@ volumeValue.textContent = Math.round(currentVolume * 100) + '%';
 updateTextFontSize();
 updateStatus('Настройки загружены', 'info');
 }
-// ==================== КОНЕЦ STORAGE MANAGER ====================
-// ==================== СОХРАНЕНИЕ ПОЗИЦИИ ОЗВУЧКИ ====================
 const POSITION_HISTORY_KEY = 'tts_position_history';
 const MAX_HISTORY_ENTRIES = 20;
 function getFileHash(filename) {
@@ -495,7 +490,6 @@ updateStatus(`Позиция сохранена: фрагмент ${player.curre
 updateStatus('Не удалось сохранить позиции', 'error');
 }
 }
-// ==================== КОНЕЦ СОХРАНЕНИЯ ПОЗИЦИИ ====================
 const CONFIG = {
 MIN_SPEED: 0.05,
 MAX_SPEED: 2.0,
@@ -532,15 +526,11 @@ let minFragmentLength = CONFIG.DEFAULT_MIN_FRAGMENT_LENGTH;
 let mainFragmentLength = CONFIG.DEFAULT_MAIN_FRAGMENT_LENGTH;
 let statusClearTimeout = null;
 let singleTapTimer = null;
-// ===== Счётчик последовательности статусов для приоритета сообщений =====
 let statusSequence = 0;
-// ===== Признак актуальности подготовленного текста в режиме ввода =====
 let preparedTextContent = null;
-// ==================== ПРОВЕРКА ПОДДЕРЖКИ SPEECH SYNTHESIS ====================
 if (!window.speechSynthesis) {
 document.getElementById('noTTSMessage').classList.remove('hidden');
 }
-// ==================== FULLSCREEN API ====================
 function requestFullscreenForPlayback() {
 const el = document.documentElement;
 if (!el.requestFullscreen) {
@@ -569,7 +559,6 @@ updateStatus('Полноэкранный режим недоступен', 'info
 }
 }
 }
-// ==================== SPEECH CONTROLLER ====================
 class SpeechController {
 constructor({ getVoice, getRate, getVolume, getLang }) {
 this.synth = window.speechSynthesis;
@@ -724,9 +713,6 @@ utterance.pitch = 1.0;
 const rate = utterance.rate || 1.0;
 const length = text.length;
 const cps = CONFIG.WATCHDOG_CPS_DEFAULT;
-// Формула запасного таймера: T = min(L / (C * R) * 1000 + B, LIMIT)
-// C = 4 символа в секунду (худшая базовая скорость)
-// B = 12000 мс запас, LIMIT = 900000 мс верхний предел
 this._backupMs = Math.min(
 (length / (cps * rate)) * 1000 + CONFIG.WATCHDOG_BUFFER_MS,
 CONFIG.WATCHDOG_SAFETY_LIMIT_MS
@@ -737,7 +723,6 @@ this._currentUtterance = utterance;
 if (!document.hidden) {
 this._startDeadline = Date.now() + startMs;
 this.startTimer = setTimeout(() => this._triggerStartTimeout(myToken), startMs);
-// Запасной таймер НЕ запускается здесь — только после onstart
 this._safetyDeadline = 0;
 this._safetyRemaining = 0;
 } else {
@@ -751,14 +736,12 @@ if (this._myToken !== myToken) return;
 if (this.state !== 'speaking') return;
 if (this._started) return;
 this._started = true;
-// Стартовый таймер больше не нужен
 if (this.startTimer) {
 clearTimeout(this.startTimer);
 this.startTimer = null;
 }
 this._startDeadline = 0;
 this._startRemaining = 0;
-// Запускаем запасной таймер (только предупреждение, без остановки речи)
 if (!document.hidden) {
 this._safetyDeadline = Date.now() + this._backupMs;
 this._safetyRemaining = 0;
@@ -855,7 +838,6 @@ this.pendingSpeak = null;
 this._doSpeak(pending.text, ++this.token, pending.resolve);
 }
 }
-// Стартовый таймер: останавливает озвучку, если голос не начал говорить за 20 секунд
 _triggerStartTimeout(token) {
 if (this._myToken !== token) return;
 if (this.state !== 'speaking') return;
@@ -874,19 +856,15 @@ this.pendingSpeak = null;
 this.synth.cancel();
 this._settle(this._myToken);
 }
-// Запасной таймер: только предупреждает, НЕ останавливает речь
 _triggerBackupWarning(token) {
 if (this._myToken !== token) return;
 if (this.state !== 'speaking') return;
-// Очищаем таймер
 if (this.safetyTimer) {
 clearTimeout(this.safetyTimer);
 this.safetyTimer = null;
 }
 this._safetyDeadline = 0;
 this._safetyRemaining = 0;
-// НЕ отменяем речь, НЕ меняем состояние, НЕ переводим в idle
-// Только отправляем событие предупреждения
 this.emit('backup-warning', { token: token });
 }
 _clearWatchdog() {
@@ -904,7 +882,6 @@ this._startDeadline = 0;
 this._safetyDeadline = 0;
 }
 }
-// ==================== PLAYER ====================
 class Player {
 constructor(controller) {
 this.controller = controller;
@@ -1075,8 +1052,19 @@ this._startLoop(this.myGen);
 }
 }
 nextSub() {
+const willCreate = this.subFragments === null || this.lastMainIndexForSub !== this.currentFragmentIndex;
 this.ensureSubFragments();
 if (!this.subFragments) return;
+if (willCreate) {
+this.currentSubIndex = 0;
+this.myGen++;
+this.controller.stop();
+this.emit('subchange', this.currentSubIndex);
+if (this.isPlaying) {
+this._startLoop(this.myGen);
+}
+return;
+}
 if (this.currentSubIndex < this.subFragments.length - 1) {
 this.currentSubIndex++;
 this.myGen++;
@@ -1088,8 +1076,19 @@ this._startLoop(this.myGen);
 }
 }
 prevSub() {
+const willCreate = this.subFragments === null || this.lastMainIndexForSub !== this.currentFragmentIndex;
 this.ensureSubFragments();
 if (!this.subFragments) return;
+if (willCreate) {
+this.currentSubIndex = 0;
+this.myGen++;
+this.controller.stop();
+this.emit('subchange', this.currentSubIndex);
+if (this.isPlaying) {
+this._startLoop(this.myGen);
+}
+return;
+}
 if (this.currentSubIndex > 0) {
 this.currentSubIndex--;
 this.myGen++;
@@ -1108,7 +1107,6 @@ this.emit('error', 'no-speech-synthesis');
 return;
 }
 while (this.isPlaying && this.myGen === gen && this.currentFragmentIndex < this.fragments.length) {
-this.ensureSubFragments();
 const text = this.getCurrentText();
 if (!text) {
 this.advance();
@@ -1151,7 +1149,6 @@ getVolume: () => currentVolume,
 getLang: () => navigator.language || 'ru-RU'
 });
 const player = new Player(controller);
-// ==================== УПРАВЛЕНИЕ РАМКОЙ ФОКУСА ====================
 const textContentEl = document.getElementById('textContent');
 let focusTimer = null;
 const FOCUS_DIM_DELAY = 3000;
@@ -1179,7 +1176,6 @@ if (textContentEl) {
 textContentEl.addEventListener('focus', setFocusClass);
 textContentEl.addEventListener('blur', removeFocusClasses);
 }
-// ==================== КОНЕЦ УПРАВЛЕНИЯ РАМКОЙ ====================
 const startScreen = document.getElementById('startScreen');
 const mainInterface = document.getElementById('mainInterface');
 const textContent = document.getElementById('textContent');
@@ -1422,7 +1418,6 @@ player.prevSub();
 player.nextSub();
 }
 }
-// ==================== ОБРАБОТЧИК КЛАВИАТУРЫ ====================
 document.addEventListener('keydown', function(event) {
 if (event.ctrlKey || event.metaKey) return;
 if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'INPUT') {
@@ -2096,7 +2091,6 @@ const tail = text.substring(start).trim();
 if (tail) parts.push(tail);
 return parts;
 }
-// ==================== updateStatus ====================
 function updateStatus(message, type = 'info') {
 statusSequence++;
 if (type === 'error') {
@@ -2151,7 +2145,6 @@ player.prevSub();
 nextSubFragmentBtn.addEventListener('click', () => {
 player.nextSub();
 });
-// ==================== ОБРАБОТЧИК КНОПКИ ПУСК/ПАУЗА ====================
 playPauseBtn.addEventListener('click', (event) => {
 const isScreenClick = event.detail > 0;
 if (player.isPlaying) {
@@ -2279,7 +2272,6 @@ if (idx !== -1) voiceSelect.value = idx;
 loadVoicesForModal();
 }
 });
-// ==================== Обработчик запасного таймера (только предупреждение) ====================
 controller.on('backup-warning', () => {
 if (player.backupWarningShownForFragment !== player.currentFragmentIndex) {
 player.backupWarningShownForFragment = player.currentFragmentIndex;
@@ -2352,7 +2344,6 @@ updateTextDisplay();
 player.on('statechange', (data) => {
 playPauseBtn.textContent = data.playing ? '⏸' : '▶';
 });
-// ==================== Маппинг ошибок ====================
 player.on('error', (error) => {
 let message;
 if (error === 'start-timeout') {
@@ -2423,7 +2414,6 @@ document.documentElement.setAttribute('data-theme', e.target.value);
 saveAllSettings();
 });
 updateStatus('');
-// ==================== Закрытие #globalStatus ====================
 const globalStatusClose = document.getElementById('globalStatusClose');
 const globalStatusText = document.getElementById('globalStatusText');
 const globalStatusEl = document.getElementById('globalStatus');
@@ -2437,7 +2427,6 @@ globalStatusText.addEventListener('click', () => {
 globalStatusEl.classList.add('hidden');
 });
 }
-// ==================== Навигация Tab ====================
 document.addEventListener('keydown', function(e) {
 if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return;
 const controlRow = document.querySelector('.control-row');
