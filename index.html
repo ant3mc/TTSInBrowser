@@ -172,44 +172,6 @@ border: 1px solid #d32f2f;
 border-radius: 8px;
 background: #ffebee;
 }
-.global-status {
-position: fixed;
-z-index: 10000;
-top: env(safe-area-inset-top, 0);
-left: 50%;
-transform: translateX(-50%);
-max-width: 90vw;
-pointer-events: none;
-padding: 14px 20px;
-border-radius: 8px;
-box-shadow: 0 4px 16px rgba(0,0,0,0.35);
-font-size: 15px;
-line-height: 1.4;
-display: flex;
-align-items: center;
-gap: 12px;
-margin-top: 10px;
-}
-.global-status.error { background: #d32f2f; color: #fff; }
-.global-status.warning { background: #e65100; color: #fff; }
-.global-status.info { background: #1976d2; color: #fff; }
-#globalStatusText { pointer-events: auto; cursor: pointer; }
-#globalStatusClose {
-pointer-events: auto;
-background: none;
-border: none;
-color: inherit;
-font-size: 22px;
-cursor: pointer;
-padding: 0 6px;
-line-height: 1;
-outline: none;
-flex-shrink: 0;
-}
-#globalStatusClose:focus {
-box-shadow: 0 0 0 3px rgba(255,255,255,0.6);
-border-radius: 4px;
-}
 </style>
 </head>
 <body>
@@ -374,10 +336,6 @@ border-radius: 4px;
 </div>
 <button class="action-btn action-btn--danger" data-action="clearDictionary" tabindex="0">Очистить словарь</button>
 <button class="close-btn" data-modal="dictModal" tabindex="0">Закрыть</button>
-</div>
-<div id="globalStatus" class="global-status hidden" role="alert" aria-live="assertive" aria-atomic="true">
-<span id="globalStatusText"></span>
-<button id="globalStatusClose" aria-label="Закрыть сообщение">×</button>
 </div>
 <input type="file" id="fileInput" accept=".txt,.html,.htm" class="visually-hidden" tabindex="-1">
 <input type="file" id="dictInput" accept=".txt" class="visually-hidden" tabindex="-1">
@@ -2093,16 +2051,6 @@ return parts;
 }
 function updateStatus(message, type = 'info') {
 statusSequence++;
-if (type === 'error') {
-const globalStatus = document.getElementById('globalStatus');
-const globalStatusText = document.getElementById('globalStatusText');
-if (globalStatus && globalStatusText) {
-globalStatusText.textContent = message;
-globalStatus.classList.remove('hidden', 'warning', 'info');
-globalStatus.classList.add('error');
-}
-return;
-}
 statusContainer.textContent = message;
 statusContainer.className = `status ${type}`;
 if (!message || message.trim() === '') {
@@ -2336,7 +2284,9 @@ updateSpeed();
 initAccessibility();
 player.on('fragmentchange', () => {
 updateTextDisplay();
+if (!player.isPlaying) {
 updateStatus(`Фрагмент ${player.currentFragmentIndex + 1} из ${player.fragments.length}`);
+}
 });
 player.on('subchange', () => {
 updateTextDisplay();
@@ -2414,19 +2364,6 @@ document.documentElement.setAttribute('data-theme', e.target.value);
 saveAllSettings();
 });
 updateStatus('');
-const globalStatusClose = document.getElementById('globalStatusClose');
-const globalStatusText = document.getElementById('globalStatusText');
-const globalStatusEl = document.getElementById('globalStatus');
-if (globalStatusClose && globalStatusEl) {
-globalStatusClose.addEventListener('click', () => {
-globalStatusEl.classList.add('hidden');
-});
-}
-if (globalStatusText && globalStatusEl) {
-globalStatusText.addEventListener('click', () => {
-globalStatusEl.classList.add('hidden');
-});
-}
 document.addEventListener('keydown', function(e) {
 if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) return;
 const controlRow = document.querySelector('.control-row');
