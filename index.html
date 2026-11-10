@@ -296,10 +296,8 @@ background: #ffebee;
 </ul>
 <p><strong>Полноэкранный режим браузера:</strong></p>
 <ul>
-<li>При новом старте озвучки нажатием экранной кнопки «Пуск/Пауза» страница автоматически переходит в полноэкранный режим браузера.</li>
-<li>При возобновлении после паузы полноэкранный режим не запрашивается.</li>
+<li>При запуске воспроизведения экранной кнопкой «Пуск/Пауза», если страница ещё не находится в полноэкранном режиме, браузер запрашивает полноэкранный режим. Это относится и к возобновлению после паузы.</li>
 <li>Запуск с клавиатуры (пробел, K, Alt+K) полноэкранный режим не инициирует.</li>
-<li>Выход из полноэкранного режима по Escape не влияет на состояние озвучки.</li>
 </ul>
 <p><strong>Важно для мобильных устройств:</strong></p>
 <ul>
@@ -2119,7 +2117,7 @@ textInput.classList.add('hidden');
 textContent.classList.remove('hidden');
 updateTextDisplay();
 }
-if (isScreenClick && player.sessionState === 'idle' && window.speechSynthesis) {
+if (isScreenClick && player.fragments.length > 0 && window.speechSynthesis) {
 requestFullscreenForPlayback();
 }
 player.play();
