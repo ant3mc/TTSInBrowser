@@ -259,7 +259,7 @@ background: #ffebee;
 <p>Автор: ant3mc, 2026</p>
 <p>Лицензия: GNU AGPL версии 3 (GNU Affero General Public License version 3)</p>
 <p>Программа для синтеза речи в браузерах (Chrome, Edge и др.).</p>
-<p>Поддерживает форматы: TXT, HTML</p>
+<p>Поддерживает форматы: TXT, MD, HTML</p>
 <p>Функции:</p>
 <ul>
 <li>Регулировка скорости и громкости</li>
@@ -335,7 +335,7 @@ background: #ffebee;
 <button class="action-btn action-btn--danger" data-action="clearDictionary" tabindex="0">Очистить словарь</button>
 <button class="close-btn" data-modal="dictModal" tabindex="0">Закрыть</button>
 </div>
-<input type="file" id="fileInput" accept=".txt,.html,.htm" class="visually-hidden" tabindex="-1">
+<input type="file" id="fileInput" accept=".txt,.md,.markdown,.html,.htm" class="visually-hidden" tabindex="-1">
 <input type="file" id="dictInput" accept=".txt" class="visually-hidden" tabindex="-1">
 <script>
 const Storage = {
@@ -456,7 +456,7 @@ VOLUME_STEP: 0.1,
 MIN_FONT_SIZE: 16,
 MAX_FONT_SIZE: 96,
 FONT_STEP: 8,
-DEFAULT_MIN_FRAGMENT_LENGTH: 70,
+DEFAULT_MIN_FRAGMENT_LENGTH: 30,
 DEFAULT_MAIN_FRAGMENT_LENGTH: 200,
 STATUS_TIMEOUT: 5000,
 DOUBLE_TAP_DELAY: 400,
