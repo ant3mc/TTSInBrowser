@@ -52,7 +52,7 @@ padding-top: 0 !important;
 .play-btn:hover { background: #45a049; }
 .menu-toggle { margin-left: auto; padding: 8px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; outline: none; }
 .menu-toggle:hover { background: #45a049; }
-.text-container { flex: 1; overflow: auto; padding: 10px; background: #fafafa; }
+.text-container { flex: 1; overflow: auto; padding: 10px; background: #fafafa; overflow-anchor: none; }
 #textContent { line-height: 1.6; color: #333; max-width: 100%; white-space: pre-wrap; overflow-wrap: break-word; hyphens: auto; min-height: 100%; touch-action: manipulation; }
 #textInput { width: 100%; height: 100%; border: none; outline: none; line-height: 1.6; padding: 20px; background: #fafafa; resize: none; font-family: Arial, sans-serif; color: #333; }
 .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 1001; max-width: none; width: 90%; }
@@ -67,6 +67,11 @@ padding-top: 0 !important;
 select, input[type="number"], input[type="range"] { outline: none; width: 100%; padding: 10px; margin-bottom: 20px; }
 select:focus, input:focus, input[type="range"]:focus { box-shadow: 0 0 0 2px rgba(76,175,80,0.3); }
 #settingsScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1002; display: flex; flex-direction: column; overflow: hidden; padding: 40px; }
+.text-container, .start-menu, .modal-content { scrollbar-width: thin; scrollbar-color: #4CAF50 transparent; }
+.text-container::-webkit-scrollbar, .start-menu::-webkit-scrollbar, .modal-content::-webkit-scrollbar { width: 14px; }
+.text-container::-webkit-scrollbar-track, .start-menu::-webkit-scrollbar-track, .modal-content::-webkit-scrollbar-track { background: transparent; }
+.text-container::-webkit-scrollbar-thumb, .start-menu::-webkit-scrollbar-thumb, .modal-content::-webkit-scrollbar-thumb { background: #4CAF50; border-radius: 7px; border: 3px solid transparent; background-clip: content-box; }
+.text-container::-webkit-scrollbar-thumb:hover, .start-menu::-webkit-scrollbar-thumb:hover, .modal-content::-webkit-scrollbar-thumb:hover { background: #45a049; border: 3px solid transparent; background-clip: content-box; }
 @media (prefers-color-scheme: dark) {
 body, #textInput, .text-container { background: #1e1e1e; color: #e0e0e0; }
 #startScreen, .modal, .control-row { background: #2a2a2a; }
@@ -1258,6 +1263,7 @@ if (newSize >= CONFIG.MIN_FONT_SIZE && newSize <= CONFIG.MAX_FONT_SIZE) {
 currentFontSize = newSize;
 updateTextFontSize();
 updateStatus(`Размер шрифта: ${currentFontSize} пикселей`, 'info');
+scheduleScrollToCurrent();
 }
 }
 function scrollTextByLine(direction) {
@@ -1288,6 +1294,7 @@ status.classList.add('hidden');
 updateStatus('Панель управления скрыта', 'info');
 removeFocusClasses();
 }
+scheduleScrollToCurrent();
 }
 document.getElementById('fontSmaller').addEventListener('click', () => {
 adjustFontSize(-1);
@@ -1363,7 +1370,7 @@ lines.push('');
 }
 flush();
 let result = lines.join('\n');
-result = result.replace(/\n{3,}/g, '\n').trim();
+result = result.replace(/\n{3,}/g, '\n\n').trim();
 return result;
 }
 function navigateSubFragment(direction) {
@@ -1820,7 +1827,7 @@ return text
 .replace(/\r\n/g, '\n')
 .replace(/\r/g, '\n')
 .replace(/\v/g, '\n')
-.replace(/\n{3,}/g, '\n');
+.replace(/\n{3,}/g, '\n\n');
 }
 function splitIntoFragments(text) {
 if (!text || typeof text !== 'string') return [];
@@ -1977,6 +1984,43 @@ updateStatus('Ошибка чтения файла: ' + error.message, 'error');
 reader.onerror = () => updateStatus('Ошибка при чтении файла', 'error');
 reader.readAsText(file, 'UTF-8');
 }
+function scrollCurrentFragmentIntoView() {
+const box = textContent.parentElement;
+const span = textContent.querySelector('.current-fragment');
+if (!span || !box || !box.clientHeight || textContent.classList.contains('hidden')) return;
+
+// Верх первой видимой строки: ведущие пробелы и переводы строк пропускаем.
+const node = span.firstChild;
+const first = node && node.nodeType === 3 ? node.textContent.search(/\S/) : -1;
+const range = document.createRange();
+if (first >= 0) {
+range.setStart(node, first);
+range.setEnd(node, node.length);
+} else {
+range.selectNodeContents(span);
+}
+
+// Range даёт верх текста без паддинга подсветки — компенсируем его.
+const pad = parseFloat(getComputedStyle(span).paddingTop) || 0;
+const target = box.scrollTop
++ range.getBoundingClientRect().top
+- box.getBoundingClientRect().top
+- pad;
+box.scrollTop = Math.max(0, Math.min(target, box.scrollHeight - box.clientHeight));
+}
+
+let scrollRaf = 0;
+function scheduleScrollToCurrent() {
+cancelAnimationFrame(scrollRaf);
+scrollRaf = requestAnimationFrame(() => {
+scrollRaf = requestAnimationFrame(() => {
+scrollRaf = 0;
+if (!player.userScrolled) scrollCurrentFragmentIntoView();
+});
+});
+}
+
+window.addEventListener('resize', scheduleScrollToCurrent);
 function updateTextDisplay() {
 if (player.fragments.length === 0) return;
 textContent.replaceChildren();
@@ -1989,14 +2033,10 @@ span.textContent = fragment;
 textContent.appendChild(span);
 textContent.appendChild(document.createTextNode(' '));
 });
-const allSpans = textContent.querySelectorAll('span');
-allSpans.forEach(span => span.removeAttribute('aria-current'));
 const currentSpan = textContent.querySelector('.current-fragment');
 if (currentSpan) {
 currentSpan.setAttribute('aria-current', 'location');
-if (!player.userScrolled) {
-currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
+scheduleScrollToCurrent();
 }
 }
 function splitIntoSubFragments(text) {
