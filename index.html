@@ -270,7 +270,8 @@ background: #ffebee;
 <li>Регулировка скорости и громкости</li>
 <li>Навигация по фрагментам</li>
 <li>Подсветка текущего фрагмента</li>
-<li>Поддержка пользовательского словаря замен</li>
+<li>Встроенный словарь замен, активный по умолчанию: «**» и «`» заменяются на пробел в озвучиваемом тексте</li>
+<li>Поддержка пользовательского словаря замен; загруженный внешний словарь полностью заменяет встроенный</li>
 <li>Управление с клавиатуры</li>
 <li>Сохранение позиции для последних 20 файлов</li>
 <li>Автоматический переход в полноэкранный режим браузера при новом старте озвучки нажатием кнопки «Пуск/Пауза» или одиночным касанием центра экрана</li>
@@ -333,6 +334,7 @@ background: #ffebee;
 <h2>Словарь замен</h2>
 <div class="modal-content">
 <p>Формат: <code>ключ=значение</code> или <code>'ключ'='значение'</code></p>
+<p>По умолчанию действует встроенный словарь: «**» и «`» заменяются на пробел при озвучке. Успешная загрузка внешнего словаря полностью отключает встроенные правила. Кнопка «Очистить словарь» отключает все замены, включая встроенные, до перезагрузки страницы.</p>
 <div id="dictStatus" class="status" aria-live="polite"></div>
 <p id="dictInfo" aria-live="polite"></p>
 <div id="dictErrors" aria-live="polite"></div>
@@ -481,8 +483,18 @@ let rawText = '';
 let fragments = [];
 let selectedVoiceURI = null;
 let currentMode = '';
-let replacementDict = new Map();
-let replacementDictSortedKeys = [];
+const BUILTIN_REPLACEMENTS = Object.freeze([
+Object.freeze(['**', ' ']),
+Object.freeze(['`', ' '])
+]);
+function sortReplacementKeys(dict) {
+return Array.from(dict.keys()).sort((a, b) => b.length - a.length);
+}
+function createBuiltinReplacementDict() {
+return new Map(BUILTIN_REPLACEMENTS);
+}
+let replacementDict = createBuiltinReplacementDict();
+let replacementDictSortedKeys = sortReplacementKeys(replacementDict);
 let minFragmentLength = CONFIG.DEFAULT_MIN_FRAGMENT_LENGTH;
 let mainFragmentLength = CONFIG.DEFAULT_MAIN_FRAGMENT_LENGTH;
 let statusClearTimeout = null;
@@ -1370,7 +1382,7 @@ lines.push('');
 }
 flush();
 let result = lines.join('\n');
-result = result.replace(/\n{3,}/g, '\n\n').trim();
+result = result.replace(/\n{3,}/g, '\n').trim();
 return result;
 }
 function navigateSubFragment(direction) {
@@ -1711,11 +1723,30 @@ return text.replace(regex, (match) => replacementDict.get(match));
 function clearDictionary() {
 replacementDict = new Map();
 replacementDictSortedKeys = [];
-dictInfo.textContent = 'Словарь очищен.';
+dictInfo.textContent = 'Словарь очищен. Встроенные замены также отключены до перезагрузки страницы.';
 dictErrors.textContent = '';
 dictStatus.className = 'status';
 dictStatus.textContent = '';
-updateStatus('Словарь замен очищен', 'info');
+updateStatus('Словарь замен очищен, встроенные замены отключены', 'info');
+}
+function renderDictErrors(errors) {
+dictErrors.innerHTML = '';
+if (!errors || errors.length === 0) return;
+const errorList = document.createElement('ul');
+errorList.style.color = '#d32f2f';
+errorList.style.fontSize = '0.9em';
+errorList.style.marginTop = '8px';
+errors.slice(0, 20).forEach(err => {
+const li = document.createElement('li');
+li.textContent = err;
+errorList.appendChild(li);
+});
+if (errors.length > 20) {
+const li = document.createElement('li');
+li.textContent = `... и ещё ${errors.length - 20} ошибок`;
+errorList.appendChild(li);
+}
+dictErrors.appendChild(errorList);
 }
 function handleDictFile(file) {
 if (!file) return;
@@ -1753,8 +1784,30 @@ continue;
 newDict.set(left, right);
 validEntries++;
 }
+if (validEntries === 0) {
+dictInfo.innerHTML = '';
+const failFileLine = document.createElement('div');
+failFileLine.textContent = 'Файл: ';
+const failNameSpan = document.createElement('strong');
+failNameSpan.textContent = file.name || 'без имени';
+failFileLine.appendChild(failNameSpan);
+dictInfo.appendChild(failFileLine);
+const failStatsLine = document.createElement('div');
+failStatsLine.textContent = `Всего строк: ${totalLines} Валидных записей: 0`;
+dictInfo.appendChild(failStatsLine);
+const keepLine = document.createElement('div');
+keepLine.textContent = replacementDict.size > 0
+? 'Словарь не заменён: продолжает работать прежний активный словарь.'
+: 'Словарь не заменён: активный словарь по-прежнему пуст.';
+dictInfo.appendChild(keepLine);
+dictStatus.textContent = 'Ошибка загрузки: нет корректных записей';
+dictStatus.className = 'status error';
+renderDictErrors(errors);
+updateStatus(`Словарь "${file.name}" не загружен: нет корректных записей. Прежние замены сохранены.`, 'error');
+return;
+}
 replacementDict = newDict;
-replacementDictSortedKeys = Array.from(newDict.keys()).sort((a, b) => b.length - a.length);
+replacementDictSortedKeys = sortReplacementKeys(newDict);
 dictInfo.innerHTML = '';
 const fileInfoLine = document.createElement('div');
 fileInfoLine.textContent = 'Файл: ';
@@ -1765,35 +1818,17 @@ dictInfo.appendChild(fileInfoLine);
 const statsLine = document.createElement('div');
 statsLine.textContent = `Всего строк: ${totalLines} Валидных записей: ${validEntries}`;
 dictInfo.appendChild(statsLine);
-if (validEntries === 0 && totalLines > 0) {
-const warningSpan = document.createElement('span');
-warningSpan.style.color = '#e65100';
-warningSpan.textContent = ' Нет корректных записей!';
-statsLine.appendChild(warningSpan);
-}
-dictErrors.innerHTML = '';
+const builtinOffLine = document.createElement('div');
+builtinOffLine.textContent = 'Встроенные замены отключены: действует только загруженный словарь.';
+dictInfo.appendChild(builtinOffLine);
 if (errors.length > 0) {
 dictStatus.textContent = 'Обнаружены ошибки:';
 dictStatus.className = 'status warning';
-const errorList = document.createElement('ul');
-errorList.style.color = '#d32f2f';
-errorList.style.fontSize = '0.9em';
-errorList.style.marginTop = '8px';
-errors.slice(0, 20).forEach(err => {
-const li = document.createElement('li');
-li.textContent = err;
-errorList.appendChild(li);
-});
-if (errors.length > 20) {
-const li = document.createElement('li');
-li.textContent = `... и ещё ${errors.length - 20} ошибок`;
-errorList.appendChild(li);
-}
-dictErrors.appendChild(errorList);
 } else {
 dictStatus.className = 'status';
 dictStatus.textContent = 'Словарь успешно загружен';
 }
+renderDictErrors(errors);
 const globalMsg = `Словарь "${file.name}" загружен (${validEntries} записей)` +
 (errors.length ? `. Ошибок: ${errors.length}.` : '.');
 updateStatus(globalMsg, errors.length ? 'warning' : 'info');
@@ -1809,12 +1844,16 @@ dictInfo.innerHTML = '';
 const errorLine = document.createElement('div');
 errorLine.textContent = 'Ошибка обработки файла: ' + (err.message || 'неизвестная ошибка');
 dictInfo.appendChild(errorLine);
+const keepLine = document.createElement('div');
+keepLine.textContent = 'Активный словарь не изменён.';
+dictInfo.appendChild(keepLine);
 dictStatus.textContent = 'Не удалось обработать словарь';
 dictStatus.className = 'status error';
+dictErrors.textContent = '';
 }
 };
 reader.onerror = () => {
-dictInfo.textContent = 'Ошибка чтения файла. Возможно, файл повреждён.';
+dictInfo.textContent = 'Ошибка чтения файла. Возможно, файл повреждён. Активный словарь не изменён.';
 dictStatus.textContent = 'Ошибка ввода-вывода';
 dictStatus.className = 'status error';
 dictErrors.textContent = '';
@@ -1827,7 +1866,7 @@ return text
 .replace(/\r\n/g, '\n')
 .replace(/\r/g, '\n')
 .replace(/\v/g, '\n')
-.replace(/\n{3,}/g, '\n\n');
+.replace(/\n{3,}/g, '\n');
 }
 function splitIntoFragments(text) {
 if (!text || typeof text !== 'string') return [];
@@ -1988,7 +2027,6 @@ function scrollCurrentFragmentIntoView() {
 const box = textContent.parentElement;
 const span = textContent.querySelector('.current-fragment');
 if (!span || !box || !box.clientHeight || textContent.classList.contains('hidden')) return;
-
 // Верх первой видимой строки: ведущие пробелы и переводы строк пропускаем.
 const node = span.firstChild;
 const first = node && node.nodeType === 3 ? node.textContent.search(/\S/) : -1;
@@ -1999,7 +2037,6 @@ range.setEnd(node, node.length);
 } else {
 range.selectNodeContents(span);
 }
-
 // Range даёт верх текста без паддинга подсветки — компенсируем его.
 const pad = parseFloat(getComputedStyle(span).paddingTop) || 0;
 const target = box.scrollTop
@@ -2008,7 +2045,6 @@ const target = box.scrollTop
 - pad;
 box.scrollTop = Math.max(0, Math.min(target, box.scrollHeight - box.clientHeight));
 }
-
 let scrollRaf = 0;
 function scheduleScrollToCurrent() {
 cancelAnimationFrame(scrollRaf);
@@ -2019,7 +2055,6 @@ if (!player.userScrolled) scrollCurrentFragmentIntoView();
 });
 });
 }
-
 window.addEventListener('resize', scheduleScrollToCurrent);
 function updateTextDisplay() {
 if (player.fragments.length === 0) return;
@@ -2387,7 +2422,7 @@ updateStatus(`Обновлено голосов: ${voices.length}`, 'info');
 }
 });
 }
-document.querySelectorAll('.close-btn').forEach(btn => {
+document.querySelectorAll('.close-btn, [data-action]').forEach(btn => {
 const modalId = btn.dataset.modal;
 const action = btn.dataset.action;
 if (modalId) {
